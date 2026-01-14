@@ -54,7 +54,7 @@ function getDadosDecaimento(card) {
     if (!card.ultimoEstudo || (card.nivel === 0 && !card.ultimoEstudo)) {
         return { 
             nivelInt: card.nivel || 0, 
-            percReal: (card.nivel || 0) * 10, 
+            nivelExact: (card.nivel || 0).toFixed(2),
             msParaQueda: 0,
             horasPassadas: 0
         };
@@ -75,15 +75,14 @@ function getDadosDecaimento(card) {
     const msNoCicloAtual = msPassados % msTresHoras;
     const msParaQueda = msTresHoras - msNoCicloAtual;
 
-    // Porcentagem Real (Visual)
-    // Base 100% (ou Nível*10) - Proporção do tempo passado
-    // Ex: Nivel 10. Passou 1.5h. Perdeu 5%. Total 95%.
-    let percReal = (card.nivel * 10) - ((horasPassadas / 3) * 10);
-    percReal = Math.max(0, percReal); 
+    // Nível Exato (Visual) - Baseado em 0-10
+    // Ex: Nivel 10. Passou 1.5h. Perdeu 0.5 nível. Total 9.5.
+    let nivelExact = card.nivel - (horasPassadas / 3);
+    nivelExact = Math.max(0, nivelExact); 
 
     return {
-        nivelInt: nivelAtualInt,
-        percReal: percReal.toFixed(1), // String com 1 decimal
+        nivelInt: nivelAtualInt, // Inteiro para badges
+        nivelExact: nivelExact.toFixed(2), // String "9.98" para Dashboard
         msParaQueda: msParaQueda,
         horasPassadas: horasPassadas
     };
@@ -264,7 +263,7 @@ function excluirCard(id) {
 }
 
 // ==========================================
-// 6. DASHBOARD (COM RELÓGIO DE DECAIMENTO)
+// 6. DASHBOARD (COM RELÓGIO DE DECAIMENTO E IMPORT/EXPORT)
 // ==========================================
 function atualizarDashboard() {
     let nCritico = 0, nAtencao = 0, nSeguro = 0;
@@ -302,34 +301,36 @@ function renderizarListaDecaimento() {
     db.pastas.forEach(p => {
         p.cards.forEach(c => {
             const dados = getDadosDecaimento(c);
-            // Mostra quem não é 100% ou quem vai cair em breve
-            if (dados.percReal < 100 || dados.horasPassadas > 0) {
-                lista.push({ 
-                    titulo: c.titulo, 
-                    pasta: p.nome, 
-                    perc: dados.percReal,
-                    msParaQueda: dados.msParaQueda,
-                    isZero: dados.nivelInt === 0 && parseFloat(dados.percReal) === 0
-                });
-            }
+            // CORREÇÃO: Adiciona TODOS os cards à lista, não apenas os que estão decaindo.
+            // Assim o dashboard nunca fica vazio se tiver cards.
+            lista.push({ 
+                titulo: c.titulo, 
+                pasta: p.nome, 
+                nivelExact: dados.nivelExact, // 0 a 10
+                msParaQueda: dados.msParaQueda,
+                isZero: dados.nivelInt === 0 && parseFloat(dados.nivelExact) === 0
+            });
         });
     });
 
-    // Ordena pela menor porcentagem primeiro
-    lista.sort((a,b) => parseFloat(a.perc) - parseFloat(b.perc));
+    // Ordena pelo MENOR nível primeiro (mais urgente)
+    lista.sort((a,b) => parseFloat(a.nivelExact) - parseFloat(b.nivelExact));
     
     const container = document.getElementById('dashDecaimento');
     if (lista.length === 0) {
-        container.innerHTML = '<div class="list-group-item text-center text-muted">Tudo 100%! 🧠</div>';
+        container.innerHTML = '<div class="list-group-item text-center text-muted">Nenhum card criado.</div>';
     } else {
-        container.innerHTML = lista.slice(0, 5).map(item => {
+        // Mostra os top 6 mais urgentes
+        container.innerHTML = lista.slice(0, 6).map(item => {
             const h = Math.floor(item.msParaQueda / 3600000);
             const m = Math.floor((item.msParaQueda % 3600000) / 60000);
             
+            const nivelNum = parseFloat(item.nivelExact);
+            
             let cor = 'text-dark';
             let borda = 'border-warning';
-            if (item.perc < 50) { cor = 'text-danger'; borda = 'border-danger'; }
-            else if (item.perc >= 90) { cor = 'text-success'; borda = 'border-success'; }
+            if (nivelNum < 5) { cor = 'text-danger'; borda = 'border-danger'; }
+            else if (nivelNum >= 9) { cor = 'text-success'; borda = 'border-success'; }
 
             const relogio = item.isZero ? 
                 '<span class="badge bg-danger">Estudar!</span>' : 
@@ -340,7 +341,7 @@ function renderizarListaDecaimento() {
                 <div class="w-100">
                     <div class="d-flex justify-content-between">
                         <strong class="text-truncate" style="max-width:200px;">${item.titulo}</strong>
-                        <strong class="${cor}">${item.perc}%</strong>
+                        <strong class="${cor}">Nível ${item.nivelExact}</strong>
                     </div>
                     <div class="d-flex justify-content-between mt-1">
                         <small class="text-muted fst-italic">${item.pasta}</small>
@@ -351,6 +352,8 @@ function renderizarListaDecaimento() {
         }).join('');
     }
 }
+
+// ... Gráficos e Motor de Treino (mantidos iguais, mas incluídos aqui para integridade) ...
 
 function renderizarGraficoPizza(crit, atenc, seg) {
     const ctx = document.getElementById('chartDistribuicao');
@@ -386,9 +389,6 @@ function renderizarGraficoBarras(dados) {
     });
 }
 
-// ==========================================
-// 7. MOTOR DE TREINO
-// ==========================================
 function carregarCard(id) {
     cardAtivoRef = db.pastas[pastaAtivaIdx].cards.find(c => c.id === id);
     const dados = getDadosDecaimento(cardAtivoRef);
@@ -431,7 +431,6 @@ function prepararTreino(text) {
         return { original: word, clean: clean, isConnector: isConnector, reveladaNoCiclo: false };
     });
     
-    // Se >= 50%, vai para consolidação
     if (cardAtivoRef.nivel >= 5) {
         iniciarModoFinal();
     } else {
@@ -442,13 +441,10 @@ function prepararTreino(text) {
 }
 
 function proximaRodadaErosao() {
-    // REGRA: Esconde EXATAMENTE 1 palavra nova
     let disponiveis = indicesPalavrasUteis.filter(i => !indicesOcultosAcumulados.includes(i));
-    
     if (disponiveis.length > 0) {
         const randIndex = Math.floor(Math.random() * disponiveis.length);
         indicesOcultosAcumulados.push(disponiveis[randIndex]);
-        
         document.getElementById('infoBadge').innerText = `Ocultas: ${indicesOcultosAcumulados.length}/${indicesPalavrasUteis.length}`;
         renderizarTexto();
         atualizarBarraProgresso();
@@ -462,11 +458,9 @@ function iniciarModoFinal() {
     cicloFinal++; 
     indicePalavraEsperadaNoModoFinal = 0;
     wordsData.forEach(w => w.reveladaNoCiclo = false);
-    
     document.getElementById('faseStatus').innerText = `Consolidação (${cicloFinal}/3)`;
     document.getElementById('faseStatus').className = "badge bg-danger me-1";
     document.getElementById('infoBadge').innerText = "Modo Cego";
-    
     renderizarTexto();
     atualizarBarraProgresso();
 }
@@ -474,13 +468,11 @@ function iniciarModoFinal() {
 function atualizarBarraProgresso() {
     let pct = 0;
     if (modoFinalAtivo) {
-        // 3 Ciclos de Consolidação (50% a 100%)
         const base = 50;
         const porCiclo = 50 / 3;
         const noCiclo = (indicePalavraEsperadaNoModoFinal / wordsData.length) * porCiclo;
         pct = base + ((cicloFinal - 1) * porCiclo) + noCiclo;
     } else {
-        // Erosão (0% a 50%)
         if(indicesPalavrasUteis.length > 0) pct = (indicesOcultosAcumulados.length / indicesPalavrasUteis.length) * 50;
     }
     document.getElementById('progressBarEstudo').style.width = `${pct}%`;
@@ -491,11 +483,9 @@ function renderizarTexto() {
     const display = document.getElementById('textDisplay');
     display.innerHTML = wordsData.map((obj, idx) => {
         if (modoFinalAtivo) {
-            // CONSOLIDAÇÃO - Visual Limpo
             if (obj.reveladaNoCiclo) return `<span class="word is-correct">${obj.original}</span>`;
-            return `<span class="word final-hidden"></span>`; // Lacuna limpa
+            return `<span class="word final-hidden"></span>`;
         } else {
-            // EROSÃO
             if (obj.isConnector) return `<span class="word connector">${obj.original}</span>`;
             if (indicesOcultosAcumulados.includes(idx)) {
                 const width = Math.max(30, obj.original.length * 9); 
@@ -506,9 +496,6 @@ function renderizarTexto() {
     }).join('');
 }
 
-// ==========================================
-// 8. INPUT E VALIDAÇÃO
-// ==========================================
 document.addEventListener('DOMContentLoaded', function() {
     const userInput = document.getElementById('userInput');
     if (userInput) {
@@ -529,7 +516,6 @@ function checkInput(inputEl, forceValidation = false) {
     if (!val) return;
 
     if (modoFinalAtivo) {
-        // Sequencial
         if (indicePalavraEsperadaNoModoFinal < wordsData.length) {
             const target = wordsData[indicePalavraEsperadaNoModoFinal];
             if (val === target.clean) {
@@ -539,9 +525,7 @@ function checkInput(inputEl, forceValidation = false) {
                 inputEl.value = "";
                 renderizarTexto();
                 atualizarBarraProgresso();
-                
                 if (indicePalavraEsperadaNoModoFinal >= wordsData.length) {
-                    // REGRA: 3 Ciclos obrigatórios
                     if (cicloFinal < 3) {
                         setTimeout(iniciarModoFinal, 50);
                     } else {
@@ -554,7 +538,6 @@ function checkInput(inputEl, forceValidation = false) {
             }
         }
     } else {
-        // Aleatório (Erosão)
         const matchIndex = indicesOcultosAcumulados.find(idx => {
             const el = document.getElementById(`word-${idx}`);
             return el && el.classList.contains('hidden-word') && wordsData[idx].clean === val;
@@ -565,11 +548,8 @@ function checkInput(inputEl, forceValidation = false) {
             el.classList.remove('hidden-word');
             el.classList.add('is-correct');
             el.innerText = wordsData[matchIndex].original;
-            
             totalAcertos++;
             inputEl.value = "";
-            
-            // Se acabaram as lacunas visuais, próxima palavra
             if (document.querySelectorAll('.hidden-word').length === 0) {
                 setTimeout(proximaRodadaErosao, 50);
             }
@@ -597,9 +577,6 @@ function atualizarWinrate() {
     display.className = perc < 60 ? "text-danger fw-bold" : "text-success fw-bold";
 }
 
-// ==========================================
-// 9. DICAS E FINALIZAÇÃO
-// ==========================================
 function usarDica() {
     if (!cardAtivoRef) return;
     totalErros += 5;
@@ -612,7 +589,7 @@ function usarDica() {
 function estouPronto() {
     if (bootstrapModal) bootstrapModal.hide();
     cardAtivoRef.nivel = 0;
-    cardAtivoRef.ultimoEstudo = null; // Reseta timer de decaimento
+    cardAtivoRef.ultimoEstudo = null;
     document.getElementById('userInput').value = "";
     document.getElementById('userInput').focus();
     prepararTreino(cardAtivoRef.texto);
@@ -629,4 +606,46 @@ function finalizarSessaoCard() {
     
     alert("🏆 Sessão Concluída! Nível 10 atingido.");
     voltarAoDashboard();
+}
+
+// ==========================================
+// 10. IMPORTAR E EXPORTAR (BACKUP)
+// ==========================================
+function exportarBackup() {
+    const dataStr = JSON.stringify(db, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = 'backup_legismemoria.json';
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+}
+
+function triggerImport() {
+    document.getElementById('fileInput').click();
+}
+
+function importarBackup(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const json = JSON.parse(e.target.result);
+            if (json && Array.isArray(json.pastas)) {
+                db = json;
+                salvarDB();
+                alert("Backup restaurado com sucesso!");
+                location.reload(); // Recarrega para limpar estado
+            } else {
+                alert("Arquivo inválido ou corrompido.");
+            }
+        } catch(err) {
+            alert("Erro ao ler arquivo: " + err.message);
+        }
+    };
+    reader.readAsText(file);
 }
