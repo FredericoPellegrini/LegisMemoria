@@ -12,7 +12,7 @@ let indicesOcultosAcumulados = [];
 let indicesPalavrasUteis = [];
 let listaErros = new Set();
 let modoFinalAtivo = false;
-let cicloFinal = 0; // Vai de 0 a 3
+let cicloFinal = 0; 
 let indicePalavraEsperadaNoModoFinal = 0;
 
 // Stats
@@ -27,8 +27,33 @@ let chartBar = null;
 const stopWords = ["a", "o", "as", "os", "de", "do", "da", "dos", "das", "e", "em", "um", "uma", "uns", "umas", "com", "por", "para", "que", "se", "no", "na", "nos", "nas", "ao", "aos", "pelo", "pela", "pelos", "pelas", "ou", "é", "são", "foi", "nao", "não"];
 
 // ==========================================
-// 2. UTILITÁRIOS & LÓGICA DE DECAIMENTO
+// 2. SANITIZAÇÃO E UTILITÁRIOS
 // ==========================================
+
+// FUNÇÃO DE LIMPEZA (CORRIGE O BUG DOS NÍVEIS > 10)
+function sanitizarBancoDeDados() {
+    let houveMudanca = false;
+    db.pastas.forEach(p => {
+        p.cards.forEach(c => {
+            // Se tiver nível maior que 10 (bug antigo), força virar 10
+            if (c.nivel > 10) {
+                c.nivel = 10;
+                houveMudanca = true;
+            }
+            // Garante que não seja negativo
+            if (c.nivel < 0) {
+                c.nivel = 0;
+                houveMudanca = true;
+            }
+        });
+    });
+    
+    if (houveMudanca) {
+        salvarDB();
+        console.log("Banco de dados corrigido: Níveis ajustados para o limite de 10.");
+    }
+}
+
 function normalizar(str) {
     if (!str) return "";
     return str.toLowerCase()
@@ -50,11 +75,14 @@ function formatarTempo(s) {
 
 // LÓGICA DE DECAIMENTO MATEMÁTICO E TEMPO REAL
 function getDadosDecaimento(card) {
-    // Se nunca estudou ou nível é 0, retorna básico
-    if (!card.ultimoEstudo || (card.nivel === 0 && !card.ultimoEstudo)) {
+    // SEGURANÇA EXTRA: Garante que a base do cálculo nunca seja > 10
+    const nivelBase = Math.min(10, Math.max(0, card.nivel || 0));
+
+    // Se nunca estudou ou nível é 0
+    if (!card.ultimoEstudo || (nivelBase === 0 && !card.ultimoEstudo)) {
         return { 
-            nivelInt: card.nivel || 0, 
-            nivelExact: (card.nivel || 0).toFixed(2),
+            nivelInt: nivelBase, 
+            nivelExact: nivelBase.toFixed(2),
             msParaQueda: 0,
             horasPassadas: 0
         };
@@ -67,8 +95,8 @@ function getDadosDecaimento(card) {
     // Regra: Cai 1 nível (10%) a cada 3 horas completas
     const niveisPerdidos = Math.floor(horasPassadas / 3);
     
-    // Nível Inteiro (para lógica do jogo, não cai abaixo de 0)
-    let nivelAtualInt = Math.max(0, card.nivel - niveisPerdidos);
+    // Nível Inteiro (para lógica do jogo)
+    let nivelAtualInt = Math.max(0, nivelBase - niveisPerdidos);
 
     // Tempo Restante para próxima queda (ciclo de 3h)
     const msTresHoras = 3 * 60 * 60 * 1000;
@@ -76,13 +104,12 @@ function getDadosDecaimento(card) {
     const msParaQueda = msTresHoras - msNoCicloAtual;
 
     // Nível Exato (Visual) - Baseado em 0-10
-    // Ex: Nivel 10. Passou 1.5h. Perdeu 0.5 nível. Total 9.5.
-    let nivelExact = card.nivel - (horasPassadas / 3);
-    nivelExact = Math.max(0, nivelExact); 
+    let nivelExact = nivelBase - (horasPassadas / 3);
+    nivelExact = Math.max(0, Math.min(10, nivelExact)); // Trava final entre 0 e 10
 
     return {
-        nivelInt: nivelAtualInt, // Inteiro para badges
-        nivelExact: nivelExact.toFixed(2), // String "9.98" para Dashboard
+        nivelInt: nivelAtualInt, 
+        nivelExact: nivelExact.toFixed(2), 
         msParaQueda: msParaQueda,
         horasPassadas: horasPassadas
     };
@@ -225,7 +252,10 @@ function salvarCard() {
         if (card) {
             card.titulo = titulo;
             card.texto = texto;
-            card.nivel = 0; // Reset nível ao editar
+            // IMPORTANTE: Resetar para 0 garante reestudo, 
+            // mas garante que não fique com lixo
+            card.nivel = 0; 
+            card.ultimoEstudo = null;
         }
     } else {
         cards.push({
@@ -263,7 +293,7 @@ function excluirCard(id) {
 }
 
 // ==========================================
-// 6. DASHBOARD (COM RELÓGIO DE DECAIMENTO E IMPORT/EXPORT)
+// 6. DASHBOARD
 // ==========================================
 function atualizarDashboard() {
     let nCritico = 0, nAtencao = 0, nSeguro = 0;
@@ -280,10 +310,10 @@ function atualizarDashboard() {
             else if (dados.nivelInt < 9) nAtencao++;
             else nSeguro++;
             
-            somaNivel += dados.nivelInt;
+            somaNivel += parseFloat(dados.nivelExact);
         });
         const media = p.cards.length ? (somaNivel / p.cards.length) : 0;
-        dadosPastas.push({ nome: p.nome, media: media.toFixed(1) });
+        dadosPastas.push({ nome: p.nome, media: media.toFixed(2) });
     });
 
     document.getElementById('kpiCriticos').innerText = nCritico;
@@ -301,12 +331,10 @@ function renderizarListaDecaimento() {
     db.pastas.forEach(p => {
         p.cards.forEach(c => {
             const dados = getDadosDecaimento(c);
-            // CORREÇÃO: Adiciona TODOS os cards à lista, não apenas os que estão decaindo.
-            // Assim o dashboard nunca fica vazio se tiver cards.
             lista.push({ 
                 titulo: c.titulo, 
                 pasta: p.nome, 
-                nivelExact: dados.nivelExact, // 0 a 10
+                nivelExact: dados.nivelExact, 
                 msParaQueda: dados.msParaQueda,
                 isZero: dados.nivelInt === 0 && parseFloat(dados.nivelExact) === 0
             });
@@ -320,7 +348,6 @@ function renderizarListaDecaimento() {
     if (lista.length === 0) {
         container.innerHTML = '<div class="list-group-item text-center text-muted">Nenhum card criado.</div>';
     } else {
-        // Mostra os top 6 mais urgentes
         container.innerHTML = lista.slice(0, 6).map(item => {
             const h = Math.floor(item.msParaQueda / 3600000);
             const m = Math.floor((item.msParaQueda % 3600000) / 60000);
@@ -352,8 +379,6 @@ function renderizarListaDecaimento() {
         }).join('');
     }
 }
-
-// ... Gráficos e Motor de Treino (mantidos iguais, mas incluídos aqui para integridade) ...
 
 function renderizarGraficoPizza(crit, atenc, seg) {
     const ctx = document.getElementById('chartDistribuicao');
@@ -389,10 +414,13 @@ function renderizarGraficoBarras(dados) {
     });
 }
 
+// ==========================================
+// 7. MOTOR DE TREINO
+// ==========================================
 function carregarCard(id) {
     cardAtivoRef = db.pastas[pastaAtivaIdx].cards.find(c => c.id === id);
     const dados = getDadosDecaimento(cardAtivoRef);
-    cardAtivoRef.nivel = dados.nivelInt; // Sincroniza nível real
+    cardAtivoRef.nivel = dados.nivelInt; // Sincroniza nível real (sanitizado)
     
     esconderTodasTelas();
     document.getElementById('trainingArea').classList.remove('d-none');
@@ -496,7 +524,14 @@ function renderizarTexto() {
     }).join('');
 }
 
+// ==========================================
+// 8. INPUT E VALIDAÇÃO
+// ==========================================
 document.addEventListener('DOMContentLoaded', function() {
+    // 1. Limpa dados ruins ao iniciar
+    sanitizarBancoDeDados();
+
+    // 2. Configura Inputs
     const userInput = document.getElementById('userInput');
     if (userInput) {
         userInput.addEventListener('input', function() { checkInput(this); });
@@ -507,6 +542,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // 3. Renderiza UI
     renderizarPastas();
     atualizarDashboard();
 });
@@ -614,9 +651,7 @@ function finalizarSessaoCard() {
 function exportarBackup() {
     const dataStr = JSON.stringify(db, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    
     const exportFileDefaultName = 'backup_legismemoria.json';
-    
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
@@ -637,11 +672,13 @@ function importarBackup(input) {
             const json = JSON.parse(e.target.result);
             if (json && Array.isArray(json.pastas)) {
                 db = json;
+                // Ao importar, roda sanitização também para garantir
+                sanitizarBancoDeDados(); 
                 salvarDB();
                 alert("Backup restaurado com sucesso!");
-                location.reload(); // Recarrega para limpar estado
+                location.reload(); 
             } else {
-                alert("Arquivo inválido ou corrompido.");
+                alert("Arquivo inválido.");
             }
         } catch(err) {
             alert("Erro ao ler arquivo: " + err.message);
