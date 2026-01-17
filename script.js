@@ -11,7 +11,7 @@ let wordsData = [];
 let indicesOcultosAcumulados = [];
 let indicesPalavrasUteis = [];
 let listaErros = new Set();
-let modoFinalAtivo = false;
+let modoFinalAtivo = false; // False = Erosão, True = Consolidação
 let cicloFinal = 0; 
 let indicePalavraEsperadaNoModoFinal = 0;
 
@@ -30,27 +30,18 @@ const stopWords = ["a", "o", "as", "os", "de", "do", "da", "dos", "das", "e", "e
 // 2. SANITIZAÇÃO E UTILITÁRIOS
 // ==========================================
 
-// FUNÇÃO DE LIMPEZA (CORRIGE O BUG DOS NÍVEIS > 10)
 function sanitizarBancoDeDados() {
     let houveMudanca = false;
     db.pastas.forEach(p => {
         p.cards.forEach(c => {
-            // Se tiver nível maior que 10 (bug antigo), força virar 10
-            if (c.nivel > 10) {
-                c.nivel = 10;
-                houveMudanca = true;
-            }
-            // Garante que não seja negativo
-            if (c.nivel < 0) {
-                c.nivel = 0;
-                houveMudanca = true;
-            }
+            if (c.nivel > 10) { c.nivel = 10; houveMudanca = true; }
+            if (c.nivel < 0) { c.nivel = 0; houveMudanca = true; }
         });
     });
     
     if (houveMudanca) {
         salvarDB();
-        console.log("Banco de dados corrigido: Níveis ajustados para o limite de 10.");
+        console.log("Banco de dados corrigido.");
     }
 }
 
@@ -74,71 +65,71 @@ function formatarTempo(s) {
 }
 
 // ==========================================
-// LÓGICA DE DECAIMENTO: CURVA PROGRESSIVA (ORGÂNICA)
+// 3. LÓGICA DE DECAIMENTO (PONDERADA - 72H TOTAL)
 // ==========================================
 function getDadosDecaimento(card) {
-    // CONFIGURAÇÃO: 3 DIAS (72h) PARA ZERAR TOTALMENTE
-    // Mas o decaimento não é linear: Níveis altos são "duros", baixos são "frágeis".
-    const HORAS_TOTAIS_PARA_ZERAR = 72;
+    // CONFIGURAÇÃO DOS PESOS (Total 72h)
+    // High (Lvl 9, 10): 14.4h cada
+    // Mid (Lvl 5-8): 7.2h cada
+    // Low (Lvl 1-4): 3.6h cada
+    const duracaoPorNivel = {
+        10: 14.4, 9: 14.4,
+        8: 7.2, 7: 7.2, 6: 7.2, 5: 7.2,
+        4: 3.6, 3: 3.6, 2: 3.6, 1: 3.6
+    };
 
-    // SEGURANÇA: Base do cálculo
-    const nivelBase = Math.min(10, Math.max(0, card.nivel || 0));
-
-    // Se nunca estudou
-    if (!card.ultimoEstudo || (nivelBase === 0 && !card.ultimoEstudo)) {
-        return { 
-            nivelInt: nivelBase, 
-            nivelExact: nivelBase.toFixed(2), 
-            msParaQueda: 0,
-            horasPassadas: 0 
-        };
+    const nivelSalvo = Math.min(10, Math.max(0, card.nivel || 0));
+    
+    // Se nunca estudou ou nível 0
+    if (!card.ultimoEstudo || (nivelSalvo === 0 && !card.ultimoEstudo)) {
+        return { nivelInt: 0, estabilidade: "0.0", msParaQueda: 0 };
     }
 
     const agora = Date.now();
-    const msPassados = agora - card.ultimoEstudo;
-    const horasPassadas = msPassados / (1000 * 60 * 60);
+    const horasPassadas = (agora - card.ultimoEstudo) / (1000 * 60 * 60);
 
-    // MATEMÁTICA DA CURVA:
-    // A soma dos pesos de 1 a 10 é 55.
-    const fatorTempo = HORAS_TOTAIS_PARA_ZERAR / 55; 
-    
-    // Calcula quantos "pontos de resistência" o card tinha originalmente
-    const pontosIniciais = (nivelBase * (nivelBase + 1)) / 2;
-    
-    // Quantos pontos foram "comidos" pelo tempo
-    const pontosPerdidos = horasPassadas / fatorTempo;
-    
-    const pontosAtuais = Math.max(0, pontosIniciais - pontosPerdidos);
+    // Simula a queda nível por nível
+    let nivelAtual = nivelSalvo;
+    let tempoRestanteParaDeduzir = horasPassadas;
+    let msParaQueda = 0;
+    let porcentagemEstabilidade = 0;
 
-    // CONVERTER PONTOS DE VOLTA PARA NÍVEL (Fórmula Quadrática)
-    let nivelExact = (Math.sqrt(1 + 8 * pontosAtuais) - 1) / 2;
-    
-    // Ajustes finais
-    nivelExact = Math.max(0, Math.min(10, nivelExact));
-    const nivelInt = Math.floor(nivelExact);
+    // Loop de consumo do tempo
+    while (nivelAtual > 0) {
+        const duracaoDesteNivel = duracaoPorNivel[nivelAtual];
+        
+        if (tempoRestanteParaDeduzir < duracaoDesteNivel) {
+            // O tempo parou DENTRO deste nível
+            const horasParaCair = duracaoDesteNivel - tempoRestanteParaDeduzir;
+            msParaQueda = horasParaCair * 60 * 60 * 1000;
+            
+            // Calcula % visual (100% = acabou de entrar no nível, 0% = vai cair)
+            const ratio = horasParaCair / duracaoDesteNivel;
+            porcentagemEstabilidade = ratio * 100;
+            
+            break; 
+        } else {
+            // Consumiu o nível todo, cai para o próximo
+            tempoRestanteParaDeduzir -= duracaoDesteNivel;
+            nivelAtual--;
+        }
+    }
 
-    // CALCULAR TEMPO PARA PRÓXIMA QUEDA (VISUAL)
-    const pontosDoNivelAtual = (nivelInt * (nivelInt + 1)) / 2;
-    const pontosRestantesNoNivel = pontosAtuais - pontosDoNivelAtual;
-    
-    const horasParaQueda = pontosRestantesNoNivel * fatorTempo;
-    const msParaQueda = horasParaQueda * 60 * 60 * 1000;
+    if (nivelAtual <= 0) {
+        nivelAtual = 0;
+        porcentagemEstabilidade = 0;
+        msParaQueda = 0;
+    }
 
     return {
-        nivelInt: nivelInt, 
-        nivelExact: nivelExact.toFixed(2), 
-        msParaQueda: msParaQueda,
-        horasPassadas: horasPassadas
+        nivelInt: nivelAtual,
+        estabilidade: porcentagemEstabilidade.toFixed(1), 
+        msParaQueda: msParaQueda
     };
 }
 
-// Wrapper para compatibilidade simples
-function calcularNivelDecaimento(card) {
-    return getDadosDecaimento(card).nivelInt;
-}
-
 // ==========================================
-// 3. UI - NAVEGAÇÃO
+// 4. UI - NAVEGAÇÃO
 // ==========================================
 function esconderTodasTelas() {
     document.getElementById('dashboardArea').classList.add('d-none');
@@ -166,7 +157,7 @@ function mostrarSetup(isEdit = false) {
 }
 
 // ==========================================
-// 4. CRUD PASTAS
+// 5. CRUD PASTAS
 // ==========================================
 function criarPasta() {
     const nome = document.getElementById('novaPastaNome').value.trim();
@@ -228,7 +219,7 @@ function selecionarPasta(idx) {
 }
 
 // ==========================================
-// 5. CRUD CARDS
+// 6. CRUD CARDS
 // ==========================================
 function renderizarCards() {
     const lista = document.getElementById('listaCards');
@@ -269,6 +260,8 @@ function salvarCard() {
         if (card) {
             card.titulo = titulo;
             card.texto = texto;
+            // Edição reseta para nível 0? Depende da sua preferência. 
+            // Aqui mantemos resetado para forçar re-estudo se mudou o texto.
             card.nivel = 0; 
             card.ultimoEstudo = null;
         }
@@ -308,7 +301,7 @@ function excluirCard(id) {
 }
 
 // ==========================================
-// 6. DASHBOARD
+// 7. DASHBOARD
 // ==========================================
 function atualizarDashboard() {
     let nCritico = 0, nAtencao = 0, nSeguro = 0;
@@ -325,10 +318,10 @@ function atualizarDashboard() {
             else if (dados.nivelInt < 9) nAtencao++;
             else nSeguro++;
             
-            somaNivel += parseFloat(dados.nivelExact);
+            somaNivel += dados.nivelInt;
         });
         const media = p.cards.length ? (somaNivel / p.cards.length) : 0;
-        dadosPastas.push({ nome: p.nome, media: media.toFixed(2) });
+        dadosPastas.push({ nome: p.nome, media: media.toFixed(1) });
     });
 
     document.getElementById('kpiCriticos').innerText = nCritico;
@@ -349,15 +342,16 @@ function renderizarListaDecaimento() {
             lista.push({ 
                 titulo: c.titulo, 
                 pasta: p.nome, 
-                nivelExact: dados.nivelExact, 
+                nivelInt: dados.nivelInt,
+                estabilidade: dados.estabilidade, 
                 msParaQueda: dados.msParaQueda,
-                isZero: dados.nivelInt === 0 && parseFloat(dados.nivelExact) === 0
+                isZero: dados.nivelInt === 0
             });
         });
     });
 
-    // Ordena pelo MENOR nível primeiro (mais urgente)
-    lista.sort((a,b) => parseFloat(a.nivelExact) - parseFloat(b.nivelExact));
+    // Ordena por estabilidade (menor = mais urgente)
+    lista.sort((a,b) => parseFloat(a.estabilidade) - parseFloat(b.estabilidade));
     
     const container = document.getElementById('dashDecaimento');
     if (lista.length === 0) {
@@ -367,28 +361,36 @@ function renderizarListaDecaimento() {
             const h = Math.floor(item.msParaQueda / 3600000);
             const m = Math.floor((item.msParaQueda % 3600000) / 60000);
             
-            const nivelNum = parseFloat(item.nivelExact);
-            
             let cor = 'text-dark';
             let borda = 'border-warning';
-            if (nivelNum < 5) { cor = 'text-danger'; borda = 'border-danger'; }
-            else if (nivelNum >= 9) { cor = 'text-success'; borda = 'border-success'; }
+            let bgBarra = 'bg-warning';
+
+            if (item.nivelInt < 5) { 
+                cor = 'text-danger'; 
+                borda = 'border-danger'; 
+                bgBarra = 'bg-danger';
+            } else if (item.nivelInt >= 9) { 
+                cor = 'text-success'; 
+                borda = 'border-success'; 
+                bgBarra = 'bg-success';
+            }
 
             const relogio = item.isZero ? 
                 '<span class="badge bg-danger">Estudar!</span>' : 
-                `<small class="text-muted">Cai em: <strong>${h}h ${m}m</strong></small>`;
+                `<small class="text-muted">Cai nível em: <strong>${h}h ${m}m</strong></small>`;
 
             return `
-            <div class="list-group-item d-flex justify-content-between align-items-center border-start border-4 ${borda}" style="margin-bottom:3px;">
-                <div class="w-100">
-                    <div class="d-flex justify-content-between">
-                        <strong class="text-truncate" style="max-width:200px;">${item.titulo}</strong>
-                        <strong class="${cor}">Nível ${item.nivelExact}</strong>
+            <div class="list-group-item border-start border-4 ${borda}" style="margin-bottom:3px;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <strong class="text-truncate" style="max-width:200px;">${item.titulo}</strong>
+                    <div class="text-end">
+                        <span class="badge ${bgBarra}">${item.estabilidade}%</span>
+                        <div style="font-size: 0.7rem;" class="${cor}">Nível ${item.nivelInt}</div>
                     </div>
-                    <div class="d-flex justify-content-between mt-1">
-                        <small class="text-muted fst-italic">${item.pasta}</small>
-                        ${relogio}
-                    </div>
+                </div>
+                <div class="d-flex justify-content-between mt-1">
+                    <small class="text-muted fst-italic">${item.pasta}</small>
+                    ${relogio}
                 </div>
             </div>`;
         }).join('');
@@ -430,7 +432,7 @@ function renderizarGraficoBarras(dados) {
 }
 
 // ==========================================
-// 7. MOTOR DE TREINO
+// 8. MOTOR DE TREINO (Regras Definidas)
 // ==========================================
 function carregarCard(id) {
     cardAtivoRef = db.pastas[pastaAtivaIdx].cards.find(c => c.id === id);
@@ -460,9 +462,6 @@ function iniciarCronometro() {
     }, 1000);
 }
 
-// -----------------------------------------------------
-// FUNÇÕES DE TREINO ATUALIZADAS (Ciclos Dinâmicos)
-// -----------------------------------------------------
 function prepararTreino(text) {
     indicesOcultosAcumulados = [];
     indicesPalavrasUteis = [];
@@ -477,11 +476,13 @@ function prepararTreino(text) {
         return { original: word, clean: clean, isConnector: isConnector, reveladaNoCiclo: false };
     });
     
-    // REGRA: Nível 4+ -> Consolidação direta. Abaixo de 4 -> Erosão.
-    if (cardAtivoRef.nivel >= 4) {
+    // REGRA DO JOGO:
+    // < 5: Erosão
+    // >= 5: Consolidação (Modo Cego)
+    if (cardAtivoRef.nivel >= 5) {
         iniciarModoFinal();
     } else {
-        document.getElementById('faseStatus').innerText = "Erosão";
+        document.getElementById('faseStatus').innerText = "Erosão (Nível 1-4)";
         document.getElementById('faseStatus').className = "badge bg-warning text-dark me-1";
         proximaRodadaErosao();
     }
@@ -489,6 +490,7 @@ function prepararTreino(text) {
 
 function proximaRodadaErosao() {
     let disponiveis = indicesPalavrasUteis.filter(i => !indicesOcultosAcumulados.includes(i));
+    
     if (disponiveis.length > 0) {
         const randIndex = Math.floor(Math.random() * disponiveis.length);
         indicesOcultosAcumulados.push(disponiveis[randIndex]);
@@ -496,7 +498,8 @@ function proximaRodadaErosao() {
         renderizarTexto();
         atualizarBarraProgresso();
     } else {
-        iniciarModoFinal();
+        // Se acabou a erosão, finaliza (pois é nível baixo)
+        finalizarSessaoCard();
     }
 }
 
@@ -506,8 +509,10 @@ function iniciarModoFinal() {
     indicePalavraEsperadaNoModoFinal = 0;
     wordsData.forEach(w => w.reveladaNoCiclo = false);
     
-    // REGRA: Nível 8+ -> 1 ciclo. Nível 4-7 -> 3 ciclos.
-    const maxCiclos = cardAtivoRef.nivel >= 8 ? 1 : 3;
+    // REGRA DE CICLOS:
+    // Nível 9 ou 10: 1 Ciclo
+    // Nível 5 a 8: 3 Ciclos
+    const maxCiclos = cardAtivoRef.nivel >= 9 ? 1 : 3;
 
     document.getElementById('faseStatus').innerText = `Consolidação (${cicloFinal}/${maxCiclos})`;
     document.getElementById('faseStatus').className = "badge bg-danger me-1";
@@ -519,19 +524,17 @@ function iniciarModoFinal() {
 function atualizarBarraProgresso() {
     let pct = 0;
     if (modoFinalAtivo) {
-        // Ajusta a barra para 1 ou 3 ciclos dependendo do nível
-        const maxCiclos = cardAtivoRef.nivel >= 8 ? 1 : 3;
-        
-        const base = 50; 
-        const porCiclo = 50 / maxCiclos; 
+        const maxCiclos = cardAtivoRef.nivel >= 9 ? 1 : 3;
+        const porCiclo = 100 / maxCiclos; 
         
         const noCiclo = (indicePalavraEsperadaNoModoFinal / wordsData.length) * porCiclo;
-        pct = base + ((cicloFinal - 1) * porCiclo) + noCiclo;
+        pct = ((cicloFinal - 1) * porCiclo) + noCiclo;
     } else {
-        if(indicesPalavrasUteis.length > 0) pct = (indicesOcultosAcumulados.length / indicesPalavrasUteis.length) * 50;
+        if(indicesPalavrasUteis.length > 0) {
+            pct = (indicesOcultosAcumulados.length / indicesPalavrasUteis.length) * 100;
+        }
     }
     
-    // Trava visual em 100%
     pct = Math.min(100, pct);
     document.getElementById('progressBarEstudo').style.width = `${pct}%`;
     document.getElementById('labelProgresso').innerText = `${Math.floor(pct)}%`;
@@ -555,7 +558,7 @@ function renderizarTexto() {
 }
 
 // ==========================================
-// 8. INPUT E VALIDAÇÃO
+// 9. INPUT E VALIDAÇÃO
 // ==========================================
 document.addEventListener('DOMContentLoaded', function() {
     sanitizarBancoDeDados();
@@ -580,6 +583,7 @@ function checkInput(inputEl, forceValidation = false) {
     if (!val) return;
 
     if (modoFinalAtivo) {
+        // --- MODO CONSOLIDAÇÃO ---
         if (indicePalavraEsperadaNoModoFinal < wordsData.length) {
             const target = wordsData[indicePalavraEsperadaNoModoFinal];
             if (val === target.clean) {
@@ -590,14 +594,14 @@ function checkInput(inputEl, forceValidation = false) {
                 renderizarTexto();
                 atualizarBarraProgresso();
                 
-                // Se acabou todas as palavras
+                // Se terminou o texto
                 if (indicePalavraEsperadaNoModoFinal >= wordsData.length) {
-                    const maxCiclos = cardAtivoRef.nivel >= 8 ? 1 : 3;
+                    const maxCiclos = cardAtivoRef.nivel >= 9 ? 1 : 3;
 
                     if (cicloFinal < maxCiclos) {
-                        setTimeout(iniciarModoFinal, 50);
+                        setTimeout(iniciarModoFinal, 50); // Próximo Ciclo
                     } else {
-                        setTimeout(finalizarSessaoCard, 50);
+                        setTimeout(finalizarSessaoCard, 50); // Fim
                     }
                 }
             } else if (forceValidation) {
@@ -606,6 +610,7 @@ function checkInput(inputEl, forceValidation = false) {
             }
         }
     } else {
+        // --- MODO EROSÃO ---
         const matchIndex = indicesOcultosAcumulados.find(idx => {
             const el = document.getElementById(`word-${idx}`);
             return el && el.classList.contains('hidden-word') && wordsData[idx].clean === val;
@@ -618,6 +623,7 @@ function checkInput(inputEl, forceValidation = false) {
             el.innerText = wordsData[matchIndex].original;
             totalAcertos++;
             inputEl.value = "";
+            
             if (document.querySelectorAll('.hidden-word').length === 0) {
                 setTimeout(proximaRodadaErosao, 50);
             }
