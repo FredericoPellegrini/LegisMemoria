@@ -73,18 +73,24 @@ function formatarTempo(s) {
     return `${min}:${seg}`;
 }
 
-// LÓGICA DE DECAIMENTO MATEMÁTICO E TEMPO REAL
+// ==========================================
+// LÓGICA DE DECAIMENTO: CURVA PROGRESSIVA (ORGÂNICA)
+// ==========================================
 function getDadosDecaimento(card) {
-    // SEGURANÇA EXTRA: Garante que a base do cálculo nunca seja > 10
+    // CONFIGURAÇÃO: 3 DIAS (72h) PARA ZERAR TOTALMENTE
+    // Mas o decaimento não é linear: Níveis altos são "duros", baixos são "frágeis".
+    const HORAS_TOTAIS_PARA_ZERAR = 72;
+
+    // SEGURANÇA: Base do cálculo
     const nivelBase = Math.min(10, Math.max(0, card.nivel || 0));
 
-    // Se nunca estudou ou nível é 0
+    // Se nunca estudou
     if (!card.ultimoEstudo || (nivelBase === 0 && !card.ultimoEstudo)) {
         return { 
             nivelInt: nivelBase, 
-            nivelExact: nivelBase.toFixed(2),
+            nivelExact: nivelBase.toFixed(2), 
             msParaQueda: 0,
-            horasPassadas: 0
+            horasPassadas: 0 
         };
     }
 
@@ -92,23 +98,34 @@ function getDadosDecaimento(card) {
     const msPassados = agora - card.ultimoEstudo;
     const horasPassadas = msPassados / (1000 * 60 * 60);
 
-    // Regra: Cai 1 nível (10%) a cada 3 horas completas
-    const niveisPerdidos = Math.floor(horasPassadas / 3);
+    // MATEMÁTICA DA CURVA:
+    // A soma dos pesos de 1 a 10 é 55.
+    const fatorTempo = HORAS_TOTAIS_PARA_ZERAR / 55; 
     
-    // Nível Inteiro (para lógica do jogo)
-    let nivelAtualInt = Math.max(0, nivelBase - niveisPerdidos);
+    // Calcula quantos "pontos de resistência" o card tinha originalmente
+    const pontosIniciais = (nivelBase * (nivelBase + 1)) / 2;
+    
+    // Quantos pontos foram "comidos" pelo tempo
+    const pontosPerdidos = horasPassadas / fatorTempo;
+    
+    const pontosAtuais = Math.max(0, pontosIniciais - pontosPerdidos);
 
-    // Tempo Restante para próxima queda (ciclo de 3h)
-    const msTresHoras = 3 * 60 * 60 * 1000;
-    const msNoCicloAtual = msPassados % msTresHoras;
-    const msParaQueda = msTresHoras - msNoCicloAtual;
+    // CONVERTER PONTOS DE VOLTA PARA NÍVEL (Fórmula Quadrática)
+    let nivelExact = (Math.sqrt(1 + 8 * pontosAtuais) - 1) / 2;
+    
+    // Ajustes finais
+    nivelExact = Math.max(0, Math.min(10, nivelExact));
+    const nivelInt = Math.floor(nivelExact);
 
-    // Nível Exato (Visual) - Baseado em 0-10
-    let nivelExact = nivelBase - (horasPassadas / 3);
-    nivelExact = Math.max(0, Math.min(10, nivelExact)); // Trava final entre 0 e 10
+    // CALCULAR TEMPO PARA PRÓXIMA QUEDA (VISUAL)
+    const pontosDoNivelAtual = (nivelInt * (nivelInt + 1)) / 2;
+    const pontosRestantesNoNivel = pontosAtuais - pontosDoNivelAtual;
+    
+    const horasParaQueda = pontosRestantesNoNivel * fatorTempo;
+    const msParaQueda = horasParaQueda * 60 * 60 * 1000;
 
     return {
-        nivelInt: nivelAtualInt, 
+        nivelInt: nivelInt, 
         nivelExact: nivelExact.toFixed(2), 
         msParaQueda: msParaQueda,
         horasPassadas: horasPassadas
@@ -252,8 +269,6 @@ function salvarCard() {
         if (card) {
             card.titulo = titulo;
             card.texto = texto;
-            // IMPORTANTE: Resetar para 0 garante reestudo, 
-            // mas garante que não fique com lixo
             card.nivel = 0; 
             card.ultimoEstudo = null;
         }
@@ -420,7 +435,7 @@ function renderizarGraficoBarras(dados) {
 function carregarCard(id) {
     cardAtivoRef = db.pastas[pastaAtivaIdx].cards.find(c => c.id === id);
     const dados = getDadosDecaimento(cardAtivoRef);
-    cardAtivoRef.nivel = dados.nivelInt; // Sincroniza nível real (sanitizado)
+    cardAtivoRef.nivel = dados.nivelInt; // Sincroniza nível real
     
     esconderTodasTelas();
     document.getElementById('trainingArea').classList.remove('d-none');
@@ -445,6 +460,9 @@ function iniciarCronometro() {
     }, 1000);
 }
 
+// -----------------------------------------------------
+// FUNÇÕES DE TREINO ATUALIZADAS (Ciclos Dinâmicos)
+// -----------------------------------------------------
 function prepararTreino(text) {
     indicesOcultosAcumulados = [];
     indicesPalavrasUteis = [];
@@ -459,7 +477,8 @@ function prepararTreino(text) {
         return { original: word, clean: clean, isConnector: isConnector, reveladaNoCiclo: false };
     });
     
-    if (cardAtivoRef.nivel >= 5) {
+    // REGRA: Nível 4+ -> Consolidação direta. Abaixo de 4 -> Erosão.
+    if (cardAtivoRef.nivel >= 4) {
         iniciarModoFinal();
     } else {
         document.getElementById('faseStatus').innerText = "Erosão";
@@ -486,7 +505,11 @@ function iniciarModoFinal() {
     cicloFinal++; 
     indicePalavraEsperadaNoModoFinal = 0;
     wordsData.forEach(w => w.reveladaNoCiclo = false);
-    document.getElementById('faseStatus').innerText = `Consolidação (${cicloFinal}/3)`;
+    
+    // REGRA: Nível 8+ -> 1 ciclo. Nível 4-7 -> 3 ciclos.
+    const maxCiclos = cardAtivoRef.nivel >= 8 ? 1 : 3;
+
+    document.getElementById('faseStatus').innerText = `Consolidação (${cicloFinal}/${maxCiclos})`;
     document.getElementById('faseStatus').className = "badge bg-danger me-1";
     document.getElementById('infoBadge').innerText = "Modo Cego";
     renderizarTexto();
@@ -496,13 +519,20 @@ function iniciarModoFinal() {
 function atualizarBarraProgresso() {
     let pct = 0;
     if (modoFinalAtivo) {
-        const base = 50;
-        const porCiclo = 50 / 3;
+        // Ajusta a barra para 1 ou 3 ciclos dependendo do nível
+        const maxCiclos = cardAtivoRef.nivel >= 8 ? 1 : 3;
+        
+        const base = 50; 
+        const porCiclo = 50 / maxCiclos; 
+        
         const noCiclo = (indicePalavraEsperadaNoModoFinal / wordsData.length) * porCiclo;
         pct = base + ((cicloFinal - 1) * porCiclo) + noCiclo;
     } else {
         if(indicesPalavrasUteis.length > 0) pct = (indicesOcultosAcumulados.length / indicesPalavrasUteis.length) * 50;
     }
+    
+    // Trava visual em 100%
+    pct = Math.min(100, pct);
     document.getElementById('progressBarEstudo').style.width = `${pct}%`;
     document.getElementById('labelProgresso').innerText = `${Math.floor(pct)}%`;
 }
@@ -528,10 +558,8 @@ function renderizarTexto() {
 // 8. INPUT E VALIDAÇÃO
 // ==========================================
 document.addEventListener('DOMContentLoaded', function() {
-    // 1. Limpa dados ruins ao iniciar
     sanitizarBancoDeDados();
 
-    // 2. Configura Inputs
     const userInput = document.getElementById('userInput');
     if (userInput) {
         userInput.addEventListener('input', function() { checkInput(this); });
@@ -543,7 +571,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 3. Renderiza UI
     renderizarPastas();
     atualizarDashboard();
 });
@@ -562,8 +589,12 @@ function checkInput(inputEl, forceValidation = false) {
                 inputEl.value = "";
                 renderizarTexto();
                 atualizarBarraProgresso();
+                
+                // Se acabou todas as palavras
                 if (indicePalavraEsperadaNoModoFinal >= wordsData.length) {
-                    if (cicloFinal < 3) {
+                    const maxCiclos = cardAtivoRef.nivel >= 8 ? 1 : 3;
+
+                    if (cicloFinal < maxCiclos) {
                         setTimeout(iniciarModoFinal, 50);
                     } else {
                         setTimeout(finalizarSessaoCard, 50);
@@ -672,7 +703,6 @@ function importarBackup(input) {
             const json = JSON.parse(e.target.result);
             if (json && Array.isArray(json.pastas)) {
                 db = json;
-                // Ao importar, roda sanitização também para garantir
                 sanitizarBancoDeDados(); 
                 salvarDB();
                 alert("Backup restaurado com sucesso!");
