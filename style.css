@@ -1,57 +1,84 @@
-/* RESET GLOBAL DE ANIMAÇÕES */
+/* RESET GLOBAL */
 * {
     transition: none !important;
     animation: none !important;
 }
 
-/* Sidebar */
+/* =========================================
+   LAYOUT FIXO 100% (SEM SCROLL DA PÁGINA)
+   ========================================= */
+body, html {
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; /* FONTE ORIGINAL RESTAURADA */
+}
+
+/* Scrollbar Personalizada */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #6c757d; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #495057; }
+
+.container-fluid, .row {
+    height: 100%;
+}
+
+/* =========================================
+   SIDEBAR (VISUAL ORIGINAL)
+   ========================================= */
 .sidebar {
-    min-height: 100vh;
+    height: 100vh;
+    overflow-y: auto;
     border-right: 1px solid #333;
 }
 
-/* Pastas */
+/* Botão Tema */
+#btnTema {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 50% !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    line-height: 1;
+    border: 1px solid rgba(255,255,255,0.3);
+}
+#btnTema:hover {
+    background: rgba(255,255,255,0.2);
+    border-color: #fff;
+}
+
+/* Itens da Sidebar */
 .folder-container {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 2px;
     border-radius: 4px;
+    padding-right: 5px;
+}
+.folder-container:hover { background: rgba(255, 255, 255, 0.1); }
+.folder-container.active { 
+    background: rgba(13, 110, 253, 0.25); 
+    border-left: 3px solid #0d6efd; 
 }
 
-.folder-container:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.folder-container.active {
-    background: rgba(13, 110, 253, 0.25);
-    border-left: 3px solid #0d6efd;
-}
-
-.folder-btn-main {
+.folder-btn-main, .card-main-btn {
     background: none;
     border: none;
     color: #e9ecef;
     text-align: left;
-    padding: 8px 12px;
     flex-grow: 1;
     font-size: 0.9rem;
     cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    padding: 8px 12px;
 }
-
-.folder-actions {
-    display: flex;
-    gap: 2px;
-    padding-right: 5px;
-    opacity: 0; 
-}
-
-.folder-container:hover .folder-actions {
-    opacity: 1;
-}
+.card-main-btn { font-size: 0.85rem; padding: 6px 10px; color: #ced4da; }
 
 .action-btn {
     background: none;
@@ -60,102 +87,208 @@
     font-size: 0.8rem;
     cursor: pointer;
     padding: 2px 5px;
+    opacity: 0;
 }
+.folder-container:hover .action-btn,
+.card-item-container:hover .action-btn { opacity: 1; }
+.action-btn:hover { color: white; background: rgba(255,255,255,0.2); border-radius: 3px; }
 
-.action-btn:hover {
-    color: white;
-    background: rgba(255,255,255,0.2);
-    border-radius: 3px;
-}
-
-/* Cards List */
 .card-item-container {
     display: flex;
     align-items: center;
-    background: rgba(255,255,255,0.02);
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     border-radius: 4px;
-    padding: 2px;
+}
+.card-item-container:hover { background: rgba(255,255,255,0.05); }
+
+/* =========================================
+   ÁREA PRINCIPAL (MAIN)
+   ========================================= */
+.main-content {
+    height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 30px;
+    background-color: #f8f9fa; /* Fundo claro padrão */
 }
 
-.card-item-container:hover {
-    background: rgba(255,255,255,0.08);
+/* Cards e Paineis (Tema Claro) */
+.card-bg {
+    background-color: #fff;
+    border: 1px solid #dee2e6;
 }
 
-.card-main-btn {
-    background: none;
-    border: none;
-    color: #ccc;
-    text-align: left;
-    flex-grow: 1;
-    font-size: 0.85rem;
-    cursor: pointer;
-    padding: 6px 8px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+/* Barra de Progresso (Fundo Claro) */
+.progress-track {
+    background-color: #e9ecef; /* Cor do trilho no modo claro */
 }
 
 /* =========================================
-   ÁREA DE TEXTO E ESTILOS DE ESTUDO 
+   WIDGET DE DECAIMENTO
+   ========================================= */
+.decay-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 2px;
+}
+
+.decay-item-row {
+    display: flex;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    overflow: hidden;
+    border: 1px solid #e9ecef;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.decay-item-row:hover {
+    transform: translateY(-2px);
+    border-color: #0d6efd;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.decay-level-indicator {
+    width: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.decay-content {
+    flex-grow: 1;
+    padding: 10px 12px;
+    min-width: 0;
+}
+
+/* =========================================
+   ÁREA DE ESTUDO
    ========================================= */
 #textDisplay {
-    font-size: 1.4rem;  /* Fonte maior */
-    line-height: 2.2;   /* Espaçamento vertical generoso */
-    font-family: 'Segoe UI', 'Roboto', Helvetica, Arial, sans-serif;
+    font-size: 1.5rem;
+    line-height: 2.3;
+    /* Fonte herdada do body (Segoe UI original) */
+    background-color: #fff;
     color: #212529;
-    letter-spacing: 0.3px;
+    border: 1px solid #dee2e6;
 }
 
-.word {
-    margin: 0 5px; /* Espaço horizontal entre palavras */
-    display: inline-block;
-    padding: 0 2px;
-    border-radius: 2px;
-}
+.word { margin: 0 4px; display: inline-block; padding: 0 2px; }
+.connector { color: #6c757d; font-weight: normal; }
 
-.connector {
-    color: #6c757d;
-    font-weight: normal;
-}
-
-/* PALAVRA OCULTA (Modo Erosão) */
+/* Palavras Ocultas (Erosão) */
 .hidden-word {
     color: transparent;
-    background-color: #f1f3f5; /* Cinza muito claro */
-    border-bottom: 2px solid #adb5bd; /* Linha de base */
+    background-color: #e9ecef;
+    border-bottom: 2px solid #adb5bd;
     min-width: 3em;
     cursor: default;
     user-select: none;
 }
 
-/* PALAVRA OCULTA (Modo Consolidação/Cego) - Novo Estilo Limpo */
+/* Palavras Ocultas (Cego) */
 .final-hidden {
     color: transparent;
-    background: transparent; /* Sem fundo */
-    border-bottom: 3px solid #dee2e6; /* Apenas uma linha mais grossa */
+    background: transparent;
+    border-bottom: 3px solid #ced4da;
     min-width: 2.5em;
-    margin: 0 6px; /* Bem espaçado */
-    box-shadow: 0 1px 0 rgba(0,0,0,0.05);
+    margin: 0 5px;
 }
 
-/* PALAVRA ACERTADA */
-.is-correct {
-    color: #198754; /* Verde */
-    font-weight: 600;
-    background: transparent; /* Remove qualquer fundo */
-    border: none; /* Remove bordas */
+.is-correct { 
+    color: #198754; 
+    font-weight: bold;
 }
 
-/* Input */
 #userInput {
     border: 2px solid #0d6efd;
     font-size: 1.3rem;
     font-weight: 500;
     padding: 10px;
+    background: #fff;
+    color: #000;
 }
 
-#userInput:focus {
-    box-shadow: none;
-    border-color: #0b5ed7;
+/* =========================================
+   MODO NOTURNO (DARK MODE) - CORRIGIDO
+   ========================================= */
+body.dark-mode .main-content {
+    background-color: #121212;
+    color: #e0e0e0;
+}
+
+/* Títulos e Textos no Dark Mode */
+body.dark-mode .title-page, 
+body.dark-mode h6, 
+body.dark-mode .decay-title,
+body.dark-mode .stats-label {
+    color: #ffffff !important;
+}
+
+body.dark-mode .text-muted { color: #adb5bd !important; }
+
+/* Cards e Elementos de Fundo */
+body.dark-mode .card-bg,
+body.dark-mode .decay-item-row,
+body.dark-mode .modal-content {
+    background-color: #1e1e1e;
+    border-color: #333;
+    color: #e0e0e0;
+}
+
+/* Barra de Progresso no Dark Mode (Correção de Visibilidade) */
+body.dark-mode .progress-track {
+    background-color: #495057 !important; /* Cinza médio visível */
+}
+
+/* INPUTS E TEXTAREAS NO DARK MODE (CORREÇÃO DE COR) */
+body.dark-mode input, 
+body.dark-mode textarea,
+body.dark-mode #userInput { /* ID específico para garantir override */
+    background-color: #2b2b2b;
+    color: #ffffff;
+    border: 1px solid #555;
+}
+
+body.dark-mode input:focus, 
+body.dark-mode textarea:focus,
+body.dark-mode #userInput:focus {
+    border-color: #0d6efd;
+    background-color: #333;
+    color: #fff;
+    outline: none;
+}
+
+body.dark-mode #userInput::placeholder {
+    color: #888;
+}
+
+/* Botão Fechar no Dark */
+body.dark-mode .btn-close-custom {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* --- ÁREA DE ESTUDO NO DARK MODE --- */
+body.dark-mode #textDisplay {
+    background-color: #1e1e1e;
+    color: #ffffff;
+    border-color: #444;
+}
+
+body.dark-mode .connector { color: #999; }
+
+body.dark-mode .hidden-word {
+    background-color: #333;
+    border-bottom: 2px solid #777;
+}
+
+body.dark-mode .final-hidden {
+    border-bottom: 3px solid #fff; /* Linha branca forte */
+}
+
+body.dark-mode .is-correct {
+    color: #4ade80; /* Verde claro neon */
 }

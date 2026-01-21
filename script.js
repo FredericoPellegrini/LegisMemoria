@@ -11,11 +11,12 @@ let wordsData = [];
 let indicesOcultosAcumulados = [];
 let indicesPalavrasUteis = [];
 let listaErros = new Set();
-let modoFinalAtivo = false; // False = Erosão, True = Consolidação
+let modoFinalAtivo = false; 
 let cicloFinal = 0; 
 let indicePalavraEsperadaNoModoFinal = 0;
+let maxCiclosDestaSessao = 1;
 
-// Stats
+// Stats e UI
 let totalAcertos = 0;
 let totalErros = 0;
 let segundosCardAtual = 0;
@@ -27,9 +28,31 @@ let chartBar = null;
 const stopWords = ["a", "o", "as", "os", "de", "do", "da", "dos", "das", "e", "em", "um", "uma", "uns", "umas", "com", "por", "para", "que", "se", "no", "na", "nos", "nas", "ao", "aos", "pelo", "pela", "pelos", "pelas", "ou", "é", "são", "foi", "nao", "não"];
 
 // ==========================================
-// 2. SANITIZAÇÃO E UTILITÁRIOS
+// 2. TEMA (MODO NOTURNO)
 // ==========================================
+function alternarTema() {
+    document.body.classList.toggle('dark-mode');
+    const isDark = document.body.classList.contains('dark-mode');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    
+    const btn = document.getElementById('btnTema');
+    if(btn) btn.innerText = isDark ? '☀️' : '🌙';
+    
+    atualizarDashboard(); // Atualiza gráficos
+}
 
+function carregarTema() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-mode');
+        const btn = document.getElementById('btnTema');
+        if(btn) btn.innerText = '☀️';
+    }
+}
+
+// ==========================================
+// 3. UTILITÁRIOS E SANITIZAÇÃO
+// ==========================================
 function sanitizarBancoDeDados() {
     let houveMudanca = false;
     db.pastas.forEach(p => {
@@ -38,11 +61,7 @@ function sanitizarBancoDeDados() {
             if (c.nivel < 0) { c.nivel = 0; houveMudanca = true; }
         });
     });
-    
-    if (houveMudanca) {
-        salvarDB();
-        console.log("Banco de dados corrigido.");
-    }
+    if (houveMudanca) salvarDB();
 }
 
 function normalizar(str) {
@@ -65,51 +84,38 @@ function formatarTempo(s) {
 }
 
 // ==========================================
-// 3. LÓGICA DE DECAIMENTO (PONDERADA - 72H TOTAL)
+// 4. LÓGICA DE DECAIMENTO
 // ==========================================
 function getDadosDecaimento(card) {
-    // CONFIGURAÇÃO DOS PESOS (Total 72h)
-    // High (Lvl 9, 10): 14.4h cada
-    // Mid (Lvl 5-8): 7.2h cada
-    // Low (Lvl 1-4): 3.6h cada
     const duracaoPorNivel = {
-        10: 14.4, 9: 14.4,
-        8: 7.2, 7: 7.2, 6: 7.2, 5: 7.2,
-        4: 3.6, 3: 3.6, 2: 3.6, 1: 3.6
+        10: 13, 9: 12, 8: 10,
+        7: 9, 6: 8, 5: 7,
+        4: 6, 3: 5, 2: 4, 1: 3
     };
 
     const nivelSalvo = Math.min(10, Math.max(0, card.nivel || 0));
     
-    // Se nunca estudou ou nível 0
-    if (!card.ultimoEstudo || (nivelSalvo === 0 && !card.ultimoEstudo)) {
+    if (!card.ultimoEstudo) {
         return { nivelInt: 0, estabilidade: "0.0", msParaQueda: 0 };
     }
 
     const agora = Date.now();
     const horasPassadas = (agora - card.ultimoEstudo) / (1000 * 60 * 60);
 
-    // Simula a queda nível por nível
     let nivelAtual = nivelSalvo;
     let tempoRestanteParaDeduzir = horasPassadas;
     let msParaQueda = 0;
     let porcentagemEstabilidade = 0;
 
-    // Loop de consumo do tempo
     while (nivelAtual > 0) {
         const duracaoDesteNivel = duracaoPorNivel[nivelAtual];
-        
         if (tempoRestanteParaDeduzir < duracaoDesteNivel) {
-            // O tempo parou DENTRO deste nível
             const horasParaCair = duracaoDesteNivel - tempoRestanteParaDeduzir;
             msParaQueda = horasParaCair * 60 * 60 * 1000;
-            
-            // Calcula % visual (100% = acabou de entrar no nível, 0% = vai cair)
             const ratio = horasParaCair / duracaoDesteNivel;
             porcentagemEstabilidade = ratio * 100;
-            
             break; 
         } else {
-            // Consumiu o nível todo, cai para o próximo
             tempoRestanteParaDeduzir -= duracaoDesteNivel;
             nivelAtual--;
         }
@@ -129,12 +135,12 @@ function getDadosDecaimento(card) {
 }
 
 // ==========================================
-// 4. UI - NAVEGAÇÃO
+// 5. UI - NAVEGAÇÃO
 // ==========================================
 function esconderTodasTelas() {
-    document.getElementById('dashboardArea').classList.add('d-none');
-    document.getElementById('setupArea').classList.add('d-none');
-    document.getElementById('trainingArea').classList.add('d-none');
+    ['dashboardArea', 'setupArea', 'trainingArea'].forEach(id => {
+        document.getElementById(id).classList.add('d-none');
+    });
 }
 
 function voltarAoDashboard() {
@@ -157,7 +163,7 @@ function mostrarSetup(isEdit = false) {
 }
 
 // ==========================================
-// 5. CRUD PASTAS
+// 6. CRUD PASTAS & CARDS
 // ==========================================
 function criarPasta() {
     const nome = document.getElementById('novaPastaNome').value.trim();
@@ -218,9 +224,6 @@ function selecionarPasta(idx) {
     atualizarDashboard();
 }
 
-// ==========================================
-// 6. CRUD CARDS
-// ==========================================
 function renderizarCards() {
     const lista = document.getElementById('listaCards');
     if (pastaAtivaIdx === null) { lista.innerHTML = ""; return; }
@@ -231,8 +234,8 @@ function renderizarCards() {
     lista.innerHTML = cards.map(c => {
         const dados = getDadosDecaimento(c);
         let corBadge = 'bg-danger';
-        if (dados.nivelInt >= 9) corBadge = 'bg-success';
-        else if (dados.nivelInt >= 5) corBadge = 'bg-warning text-dark';
+        if (dados.nivelInt >= 8) corBadge = 'bg-success';
+        else if (dados.nivelInt >= 4) corBadge = 'bg-warning text-dark';
         
         return `
         <div class="card-item-container">
@@ -260,8 +263,6 @@ function salvarCard() {
         if (card) {
             card.titulo = titulo;
             card.texto = texto;
-            // Edição reseta para nível 0? Depende da sua preferência. 
-            // Aqui mantemos resetado para forçar re-estudo se mudou o texto.
             card.nivel = 0; 
             card.ultimoEstudo = null;
         }
@@ -301,7 +302,7 @@ function excluirCard(id) {
 }
 
 // ==========================================
-// 7. DASHBOARD
+// 7. DASHBOARD & RENDERIZAÇÃO DA LISTA
 // ==========================================
 function atualizarDashboard() {
     let nCritico = 0, nAtencao = 0, nSeguro = 0;
@@ -313,11 +314,9 @@ function atualizarDashboard() {
         p.cards.forEach(c => {
             const dados = getDadosDecaimento(c);
             tempoTotalSeg += (c.tempoEstudo || 0);
-            
-            if (dados.nivelInt < 5) nCritico++;
-            else if (dados.nivelInt < 9) nAtencao++;
+            if (dados.nivelInt < 4) nCritico++;
+            else if (dados.nivelInt < 8) nAtencao++;
             else nSeguro++;
-            
             somaNivel += dados.nivelInt;
         });
         const media = p.cards.length ? (somaNivel / p.cards.length) : 0;
@@ -340,6 +339,7 @@ function renderizarListaDecaimento() {
         p.cards.forEach(c => {
             const dados = getDadosDecaimento(c);
             lista.push({ 
+                id: c.id, 
                 titulo: c.titulo, 
                 pasta: p.nome, 
                 nivelInt: dados.nivelInt,
@@ -350,56 +350,71 @@ function renderizarListaDecaimento() {
         });
     });
 
-    // Ordena por estabilidade (menor = mais urgente)
-    lista.sort((a,b) => parseFloat(a.estabilidade) - parseFloat(b.estabilidade));
+    // Ordenação: Nível (Crescente) -> Tempo (Crescente)
+    lista.sort((a,b) => {
+        if (a.nivelInt !== b.nivelInt) {
+            return a.nivelInt - b.nivelInt; 
+        }
+        return a.msParaQueda - b.msParaQueda;
+    });
     
     const container = document.getElementById('dashDecaimento');
+    
     if (lista.length === 0) {
-        container.innerHTML = '<div class="list-group-item text-center text-muted">Nenhum card criado.</div>';
+        container.innerHTML = '<div class="text-center text-muted p-4">Nenhum card criado.</div>';
     } else {
-        container.innerHTML = lista.slice(0, 6).map(item => {
+        container.innerHTML = lista.map(item => {
             const h = Math.floor(item.msParaQueda / 3600000);
             const m = Math.floor((item.msParaQueda % 3600000) / 60000);
             
-            let cor = 'text-dark';
-            let borda = 'border-warning';
-            let bgBarra = 'bg-warning';
+            let corBarra = 'var(--bs-warning)';
+            let corClasse = 'text-warning-emphasis';
+            let bgClasse = 'bg-warning-subtle';
 
-            if (item.nivelInt < 5) { 
-                cor = 'text-danger'; 
-                borda = 'border-danger'; 
-                bgBarra = 'bg-danger';
-            } else if (item.nivelInt >= 9) { 
-                cor = 'text-success'; 
-                borda = 'border-success'; 
-                bgBarra = 'bg-success';
+            if (item.nivelInt < 4) { 
+                corBarra = 'var(--bs-danger)'; 
+                corClasse = 'text-danger';
+                bgClasse = 'bg-danger-subtle';
+            } else if (item.nivelInt >= 8) { 
+                corBarra = 'var(--bs-success)';
+                corClasse = 'text-success';
+                bgClasse = 'bg-success-subtle';
             }
 
-            const relogio = item.isZero ? 
-                '<span class="badge bg-danger">Estudar!</span>' : 
-                `<small class="text-muted">Cai nível em: <strong>${h}h ${m}m</strong></small>`;
+            const tempoTxt = item.isZero ? 'AGORA' : `${h}h ${m}m`;
+            const tempoCor = item.isZero ? 'text-danger fw-bold' : 'text-muted';
 
             return `
-            <div class="list-group-item border-start border-4 ${borda}" style="margin-bottom:3px;">
-                <div class="d-flex justify-content-between align-items-center">
-                    <strong class="text-truncate" style="max-width:200px;">${item.titulo}</strong>
-                    <div class="text-end">
-                        <span class="badge ${bgBarra}">${item.estabilidade}%</span>
-                        <div style="font-size: 0.7rem;" class="${cor}">Nível ${item.nivelInt}</div>
-                    </div>
+            <div class="decay-item-row" onclick="carregarCard(${item.id})" title="Clique para estudar">
+                <div class="decay-level-indicator" style="background-color: ${corBarra};">
+                    <span style="color:white; font-weight:bold; font-size:0.8rem;">${item.nivelInt}</span>
                 </div>
-                <div class="d-flex justify-content-between mt-1">
-                    <small class="text-muted fst-italic">${item.pasta}</small>
-                    ${relogio}
+                <div class="decay-content">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <strong class="decay-title text-truncate" style="font-size:0.95rem;">${item.titulo}</strong>
+                        <span class="badge ${bgClasse} ${corClasse} border border-opacity-10 rounded-pill">${item.estabilidade}%</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-secondary small fst-italic">📂 ${item.pasta}</small>
+                        <small class="${tempoCor} small"><span style="opacity:0.7">Queda:</span> ${tempoTxt}</small>
+                    </div>
                 </div>
             </div>`;
         }).join('');
     }
 }
 
+// ==========================================
+// 8. CHARTS
+// ==========================================
 function renderizarGraficoPizza(crit, atenc, seg) {
     const ctx = document.getElementById('chartDistribuicao');
     if (chartDist) chartDist.destroy();
+    
+    const isDark = document.body.classList.contains('dark-mode');
+    const colorText = isDark ? '#e0e0e0' : '#666';
+    const borderColor = isDark ? '#1e1e1e' : '#fff';
+
     chartDist = new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -407,16 +422,26 @@ function renderizarGraficoPizza(crit, atenc, seg) {
             datasets: [{
                 data: [crit, atenc, seg],
                 backgroundColor: ['#dc3545', '#ffc107', '#198754'],
-                borderWidth: 0
+                borderWidth: 2,
+                borderColor: borderColor
             }]
         },
-        options: { responsive: true, maintainAspectRatio: false, animation: false }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { legend: { labels: { color: colorText } } }
+        }
     });
 }
 
 function renderizarGraficoBarras(dados) {
     const ctx = document.getElementById('chartBarras');
     if (chartBar) chartBar.destroy();
+    
+    const isDark = document.body.classList.contains('dark-mode');
+    const colorText = isDark ? '#e0e0e0' : '#666';
+    const gridColor = isDark ? '#444' : '#e9ecef';
+
     chartBar = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -427,17 +452,41 @@ function renderizarGraficoBarras(dados) {
                 backgroundColor: '#0d6efd'
             }]
         },
-        options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { y: { max: 10 } } }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            scales: { 
+                y: { max: 10, ticks: { color: colorText }, grid: { color: gridColor } },
+                x: { ticks: { color: colorText }, grid: { display: false } }
+            },
+            plugins: { legend: { labels: { color: colorText } } }
+        }
     });
 }
 
 // ==========================================
-// 8. MOTOR DE TREINO (Regras Definidas)
+// 9. MOTOR DE TREINO
 // ==========================================
 function carregarCard(id) {
-    cardAtivoRef = db.pastas[pastaAtivaIdx].cards.find(c => c.id === id);
+    let cardEncontrado = null;
+    let pastaIndex = -1;
+
+    // Busca o card e a pasta dele para ativar o contexto
+    db.pastas.forEach((p, idx) => {
+        const c = p.cards.find(x => x.id === id);
+        if(c) {
+            cardEncontrado = c;
+            pastaIndex = idx;
+        }
+    });
+
+    if(!cardEncontrado) return alert("Erro: Card não encontrado.");
+
+    pastaAtivaIdx = pastaIndex;
+    cardAtivoRef = cardEncontrado;
+
     const dados = getDadosDecaimento(cardAtivoRef);
-    cardAtivoRef.nivel = dados.nivelInt; // Sincroniza nível real
+    cardAtivoRef.nivel = dados.nivelInt; 
     
     esconderTodasTelas();
     document.getElementById('trainingArea').classList.remove('d-none');
@@ -449,7 +498,8 @@ function carregarCard(id) {
     totalAcertos = 0; totalErros = 0; listaErros.clear();
     atualizarWinrate();
     iniciarCronometro();
-    prepararTreino(cardAtivoRef.texto);
+    
+    prepararTreino(cardAtivoRef.texto, false);
 }
 
 function iniciarCronometro() {
@@ -462,7 +512,7 @@ function iniciarCronometro() {
     }, 1000);
 }
 
-function prepararTreino(text) {
+function prepararTreino(text, forcarResetPorDica = false) {
     indicesOcultosAcumulados = [];
     indicesPalavrasUteis = [];
     modoFinalAtivo = false;
@@ -476,21 +526,44 @@ function prepararTreino(text) {
         return { original: word, clean: clean, isConnector: isConnector, reveladaNoCiclo: false };
     });
     
-    // REGRA DO JOGO:
-    // < 5: Erosão
-    // >= 5: Consolidação (Modo Cego)
-    if (cardAtivoRef.nivel >= 5) {
-        iniciarModoFinal();
+    const isVirgem = !cardAtivoRef.ultimoEstudo;
+    const nivelAtual = cardAtivoRef.nivel;
+    let deveFazerErosao = false;
+    maxCiclosDestaSessao = 1;
+
+    if (forcarResetPorDica) {
+        deveFazerErosao = true;
+        maxCiclosDestaSessao = 3;
+        document.getElementById('faseStatus').innerText = "Reinício por Dica (Erosão)";
+        document.getElementById('faseStatus').className = "badge bg-danger text-white me-1";
+    } else if (isVirgem) {
+        deveFazerErosao = true;
+        maxCiclosDestaSessao = 3;
+        document.getElementById('faseStatus').innerText = "Novo Card (Erosão)";
+        document.getElementById('faseStatus').className = "badge bg-primary text-white me-1";
     } else {
-        document.getElementById('faseStatus').innerText = "Erosão (Nível 1-4)";
+        if (nivelAtual >= 8) { 
+            deveFazerErosao = false;
+            maxCiclosDestaSessao = 1;
+            document.getElementById('faseStatus').innerText = `Revisão Rápida (Nível ${nivelAtual})`;
+        } else if (nivelAtual >= 4) {
+            deveFazerErosao = false;
+            maxCiclosDestaSessao = 3;
+            document.getElementById('faseStatus').innerText = `Revisão Média (Nível ${nivelAtual})`;
+        } else {
+            deveFazerErosao = true;
+            maxCiclosDestaSessao = 3;
+            document.getElementById('faseStatus').innerText = `Revisão Crítica (Nível ${nivelAtual})`;
+        }
         document.getElementById('faseStatus').className = "badge bg-warning text-dark me-1";
-        proximaRodadaErosao();
     }
+
+    if (deveFazerErosao) proximaRodadaErosao();
+    else iniciarModoFinal();
 }
 
 function proximaRodadaErosao() {
     let disponiveis = indicesPalavrasUteis.filter(i => !indicesOcultosAcumulados.includes(i));
-    
     if (disponiveis.length > 0) {
         const randIndex = Math.floor(Math.random() * disponiveis.length);
         indicesOcultosAcumulados.push(disponiveis[randIndex]);
@@ -498,8 +571,7 @@ function proximaRodadaErosao() {
         renderizarTexto();
         atualizarBarraProgresso();
     } else {
-        // Se acabou a erosão, finaliza (pois é nível baixo)
-        finalizarSessaoCard();
+        iniciarModoFinal();
     }
 }
 
@@ -509,12 +581,7 @@ function iniciarModoFinal() {
     indicePalavraEsperadaNoModoFinal = 0;
     wordsData.forEach(w => w.reveladaNoCiclo = false);
     
-    // REGRA DE CICLOS:
-    // Nível 9 ou 10: 1 Ciclo
-    // Nível 5 a 8: 3 Ciclos
-    const maxCiclos = cardAtivoRef.nivel >= 9 ? 1 : 3;
-
-    document.getElementById('faseStatus').innerText = `Consolidação (${cicloFinal}/${maxCiclos})`;
+    document.getElementById('faseStatus').innerText = `Consolidação (${cicloFinal}/${maxCiclosDestaSessao})`;
     document.getElementById('faseStatus').className = "badge bg-danger me-1";
     document.getElementById('infoBadge').innerText = "Modo Cego";
     renderizarTexto();
@@ -524,17 +591,12 @@ function iniciarModoFinal() {
 function atualizarBarraProgresso() {
     let pct = 0;
     if (modoFinalAtivo) {
-        const maxCiclos = cardAtivoRef.nivel >= 9 ? 1 : 3;
-        const porCiclo = 100 / maxCiclos; 
-        
+        const porCiclo = 100 / maxCiclosDestaSessao; 
         const noCiclo = (indicePalavraEsperadaNoModoFinal / wordsData.length) * porCiclo;
         pct = ((cicloFinal - 1) * porCiclo) + noCiclo;
     } else {
-        if(indicesPalavrasUteis.length > 0) {
-            pct = (indicesOcultosAcumulados.length / indicesPalavrasUteis.length) * 100;
-        }
+        if(indicesPalavrasUteis.length > 0) pct = (indicesOcultosAcumulados.length / indicesPalavrasUteis.length) * 100;
     }
-    
     pct = Math.min(100, pct);
     document.getElementById('progressBarEstudo').style.width = `${pct}%`;
     document.getElementById('labelProgresso').innerText = `${Math.floor(pct)}%`;
@@ -558,9 +620,10 @@ function renderizarTexto() {
 }
 
 // ==========================================
-// 9. INPUT E VALIDAÇÃO
+// 10. INPUT E EVENTOS
 // ==========================================
 document.addEventListener('DOMContentLoaded', function() {
+    carregarTema();
     sanitizarBancoDeDados();
 
     const userInput = document.getElementById('userInput');
@@ -583,7 +646,6 @@ function checkInput(inputEl, forceValidation = false) {
     if (!val) return;
 
     if (modoFinalAtivo) {
-        // --- MODO CONSOLIDAÇÃO ---
         if (indicePalavraEsperadaNoModoFinal < wordsData.length) {
             const target = wordsData[indicePalavraEsperadaNoModoFinal];
             if (val === target.clean) {
@@ -594,15 +656,9 @@ function checkInput(inputEl, forceValidation = false) {
                 renderizarTexto();
                 atualizarBarraProgresso();
                 
-                // Se terminou o texto
                 if (indicePalavraEsperadaNoModoFinal >= wordsData.length) {
-                    const maxCiclos = cardAtivoRef.nivel >= 9 ? 1 : 3;
-
-                    if (cicloFinal < maxCiclos) {
-                        setTimeout(iniciarModoFinal, 50); // Próximo Ciclo
-                    } else {
-                        setTimeout(finalizarSessaoCard, 50); // Fim
-                    }
+                    if (cicloFinal < maxCiclosDestaSessao) setTimeout(iniciarModoFinal, 50);
+                    else setTimeout(finalizarSessaoCard, 50);
                 }
             } else if (forceValidation) {
                 registrarErro(inputEl.value, target.clean);
@@ -610,7 +666,6 @@ function checkInput(inputEl, forceValidation = false) {
             }
         }
     } else {
-        // --- MODO EROSÃO ---
         const matchIndex = indicesOcultosAcumulados.find(idx => {
             const el = document.getElementById(`word-${idx}`);
             return el && el.classList.contains('hidden-word') && wordsData[idx].clean === val;
@@ -624,9 +679,7 @@ function checkInput(inputEl, forceValidation = false) {
             totalAcertos++;
             inputEl.value = "";
             
-            if (document.querySelectorAll('.hidden-word').length === 0) {
-                setTimeout(proximaRodadaErosao, 50);
-            }
+            if (document.querySelectorAll('.hidden-word').length === 0) setTimeout(proximaRodadaErosao, 50);
         } else if (forceValidation) {
             registrarErro(inputEl.value, "palavra oculta");
             inputEl.value = "";
@@ -653,7 +706,7 @@ function atualizarWinrate() {
 
 function usarDica() {
     if (!cardAtivoRef) return;
-    totalErros += 5;
+    totalErros += 5; 
     atualizarWinrate();
     document.getElementById('fullTextHint').innerText = cardAtivoRef.texto;
     if (!bootstrapModal) bootstrapModal = new bootstrap.Modal(document.getElementById('hintModal'));
@@ -662,11 +715,9 @@ function usarDica() {
 
 function estouPronto() {
     if (bootstrapModal) bootstrapModal.hide();
-    cardAtivoRef.nivel = 0;
-    cardAtivoRef.ultimoEstudo = null;
     document.getElementById('userInput').value = "";
     document.getElementById('userInput').focus();
-    prepararTreino(cardAtivoRef.texto);
+    prepararTreino(cardAtivoRef.texto, true);
 }
 
 function finalizarSessaoCard() {
@@ -677,32 +728,23 @@ function finalizarSessaoCard() {
     const total = totalAcertos + totalErros;
     cardAtivoRef.winrate = Math.round((totalAcertos / (total || 1)) * 100);
     salvarDB();
-    
     alert("🏆 Sessão Concluída! Nível 10 atingido.");
     voltarAoDashboard();
 }
 
-// ==========================================
-// 10. IMPORTAR E EXPORTAR (BACKUP)
-// ==========================================
 function exportarBackup() {
     const dataStr = JSON.stringify(db, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    const exportFileDefaultName = 'backup_legismemoria.json';
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.setAttribute('download', 'backup_legismemoria.json');
     linkElement.click();
 }
 
-function triggerImport() {
-    document.getElementById('fileInput').click();
-}
-
+function triggerImport() { document.getElementById('fileInput').click(); }
 function importarBackup(input) {
     const file = input.files[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
@@ -711,14 +753,10 @@ function importarBackup(input) {
                 db = json;
                 sanitizarBancoDeDados(); 
                 salvarDB();
-                alert("Backup restaurado com sucesso!");
+                alert("Backup restaurado!");
                 location.reload(); 
-            } else {
-                alert("Arquivo inválido.");
-            }
-        } catch(err) {
-            alert("Erro ao ler arquivo: " + err.message);
-        }
+            } else alert("Arquivo inválido.");
+        } catch(err) { alert("Erro ao ler arquivo: " + err.message); }
     };
     reader.readAsText(file);
 }

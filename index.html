@@ -3,31 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LegisMemoria - Sistema de Pastas e Retenção</title>
+    <title>LegisMemoria</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div class="container-fluid">
-    <div class="row min-vh-100">
+<div class="container-fluid p-0">
+    <div class="row g-0">
+        
         <nav class="col-md-3 col-lg-2 bg-dark sidebar p-3 text-white d-flex flex-column">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="text-primary m-0">📂 LegisMemoria</h5>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h5 class="m-0 fw-bold text-primary">📂 LegisMemoria</h5>
+                <button onclick="alternarTema()" id="btnTema" class="btn btn-outline-light" title="Mudar Tema">🌙</button>
             </div>
 
             <div class="input-group mb-3">
                 <input type="text" id="novaPastaNome" class="form-control form-control-sm" placeholder="Nova pasta...">
-                <button onclick="criarPasta()" class="btn btn-outline-primary btn-sm">+</button>
+                <button onclick="criarPasta()" class="btn btn-primary btn-sm">+</button>
             </div>
             
             <div id="listaPastas" class="list-group list-group-flush mb-3 flex-grow-0" style="max-height: 35vh; overflow-y: auto;">
                 </div>
             
-            <hr class="border-secondary">
+            <hr class="border-secondary opacity-50">
             
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h5 id="tituloPastaAtiva" class="text-info small fw-bold m-0 text-truncate">Selecione uma Pasta</h5>
+                <h6 id="tituloPastaAtiva" class="text-info small fw-bold m-0 text-truncate">Selecione uma Pasta</h6>
                 <small id="contagemCards" class="text-muted" style="font-size: 0.7rem;">0 cards</small>
             </div>
 
@@ -36,51 +38,51 @@
             <div id="listaCards" class="list-group list-group-flush flex-grow-1" style="overflow-y: auto; min-height: 0;">
                 </div>
 
-            <div class="mt-3 pt-3 border-top border-secondary">
-                <h6 class="text-muted small mb-2">📦 Dados & Backup</h6>
+            <div class="mt-3 pt-3 border-top border-secondary opacity-50">
+                <h6 class="small mb-2 fw-bold text-white-50">📦 Dados & Backup</h6>
                 <div class="d-flex gap-2">
-                    <button onclick="exportarBackup()" class="btn btn-outline-light btn-sm w-50" title="Baixar dados">⬇ Exportar</button>
-                    <button onclick="triggerImport()" class="btn btn-outline-warning btn-sm w-50" title="Carregar dados">⬆ Importar</button>
+                    <button onclick="exportarBackup()" class="btn btn-outline-light btn-sm w-50" title="Baixar dados">⬇ Export</button>
+                    <button onclick="triggerImport()" class="btn btn-outline-warning btn-sm w-50" title="Carregar dados">⬆ Import</button>
                 </div>
                 <input type="file" id="fileInput" class="d-none" accept=".json" onchange="importarBackup(this)">
             </div>
         </nav>
 
-        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+        <main class="col-md-9 col-lg-10 main-content">
             
             <div id="dashboardArea">
-                <h2 class="mb-4">Painel de Controle</h2>
+                <h2 class="mb-4 fw-light title-page">Painel de Controle</h2>
                 
                 <div class="row g-3 mb-4">
                     <div class="col-md-3">
-                        <div class="card bg-danger text-white p-3 shadow-sm h-100">
-                            <h6>Críticos (Nível < 5)</h6>
-                            <div id="kpiCriticos" class="h2 mt-2">0</div>
+                        <div class="card bg-danger text-white p-3 shadow-sm h-100 border-0">
+                            <h6>Críticos (Nível < 4)</h6>
+                            <div id="kpiCriticos" class="h2 mt-2 fw-bold">0</div>
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="card bg-warning text-dark p-3 shadow-sm h-100">
-                            <h6>Atenção (Nível 5-8)</h6>
-                            <div id="kpiAtencao" class="h2 mt-2">0</div>
+                        <div class="card bg-warning text-dark p-3 shadow-sm h-100 border-0">
+                            <h6>Atenção (Nível 4-7)</h6>
+                            <div id="kpiAtencao" class="h2 mt-2 fw-bold">0</div>
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="card bg-success text-white p-3 shadow-sm h-100">
-                            <h6>Seguros (Nível 9-10)</h6>
-                            <div id="kpiSeguros" class="h2 mt-2">0</div>
+                        <div class="card bg-success text-white p-3 shadow-sm h-100 border-0">
+                            <h6>Seguros (Nível 8-10)</h6>
+                            <div id="kpiSeguros" class="h2 mt-2 fw-bold">0</div>
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="card bg-primary text-white p-3 shadow-sm h-100">
+                        <div class="card bg-primary text-white p-3 shadow-sm h-100 border-0">
                             <h6>Tempo Total</h6>
-                            <div id="dashTempoTotal" class="h4 mt-2">00:00</div>
+                            <div id="dashTempoTotal" class="h4 mt-2 fw-bold">00:00</div>
                         </div>
                     </div>
                 </div>
 
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <div class="card p-3 shadow-sm h-100">
+                        <div class="card p-3 shadow-sm h-100 card-bg">
                             <h6 class="text-muted border-bottom pb-2">Distribuição da Memória</h6>
                             <div style="height: 250px; display: flex; justify-content: center;">
                                 <canvas id="chartDistribuicao"></canvas>
@@ -88,7 +90,7 @@
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="card p-3 shadow-sm h-100">
+                        <div class="card p-3 shadow-sm h-100 card-bg">
                             <h6 class="text-muted border-bottom pb-2">Domínio por Pasta (Média Nível)</h6>
                             <div style="height: 250px;">
                                 <canvas id="chartBarras"></canvas>
@@ -100,15 +102,15 @@
                 <div class="row mt-4">
                     <div class="col-12">
                          <h6 class="text-muted border-bottom pb-2">Decaimento em Tempo Real (Próxima Queda)</h6>
-                         <div id="dashDecaimento" class="list-group"></div>
+                         <div id="dashDecaimento" class="decay-list-container" style="max-height: 500px; overflow-y: auto;"></div>
                     </div>
                 </div>
             </div>
 
-            <div id="setupArea" class="card shadow-sm p-4 mx-auto d-none" style="max-width: 800px;">
+            <div id="setupArea" class="card shadow-sm p-4 mx-auto d-none card-bg" style="max-width: 800px;">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h4 id="setupTitle">Novo Card</h4>
-                    <button onclick="voltarAoDashboard()" class="btn-close"></button>
+                    <h4 id="setupTitle" class="title-page">Novo Card</h4>
+                    <button onclick="voltarAoDashboard()" class="btn-close btn-close-custom"></button>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small text-muted">Título</label>
@@ -128,7 +130,7 @@
                 
                 <div id="statusHeader" class="mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h2 id="tituloCardAtivo" class="h4 m-0">Título</h2>
+                        <h2 id="tituloCardAtivo" class="h4 m-0 title-page">Título</h2>
                         <div>
                             <span id="faseStatus" class="badge bg-secondary me-1">Fase</span>
                             <span id="infoBadge" class="badge bg-primary">Rodada</span>
@@ -136,25 +138,26 @@
                         </div>
                     </div>
                     
-                    <div class="progress rounded-0" style="height: 12px; background-color: #e9ecef;">
+                    <div class="progress rounded-0 progress-track" style="height: 8px;">
                         <div id="progressBarEstudo" class="progress-bar bg-success" role="progressbar" style="width: 0%; transition: none;"></div>
                     </div>
+                    
                     <div class="d-flex justify-content-between mt-1 text-muted" style="font-size: 0.8rem;">
                         <span>Progresso da Sessão</span>
                         <span id="labelProgresso">0%</span>
                     </div>
 
-                    <div class="d-flex gap-3 align-items-center mt-2 p-2 bg-light rounded border">
-                        <small>Winrate: <strong id="winratePerc" class="text-success">100%</strong></small>
-                        <small>Tempo: <strong id="cronometroDisplay" class="text-dark">00:00</strong></small>
-                        <small>Nível Atual: <strong id="nivelFixacao" class="badge bg-info text-dark">0/10</strong></small>
+                    <div class="d-flex gap-3 align-items-center mt-3 p-3 rounded border card-bg shadow-sm">
+                        <small class="stats-label">Winrate: <strong id="winratePerc" class="text-success">100%</strong></small>
+                        <small class="stats-label">Tempo: <strong id="cronometroDisplay">00:00</strong></small>
+                        <small class="stats-label">Nível Atual: <strong id="nivelFixacao" class="badge bg-info text-dark">0/10</strong></small>
                     </div>
                 </div>
 
-                <div id="textDisplay" class="mb-4 shadow-sm p-4 bg-white border rounded"></div>
+                <div id="textDisplay" class="mb-4 shadow-sm p-4 rounded card-bg"></div>
                 
                 <div class="input-group mb-2">
-                    <input type="text" id="userInput" class="form-control form-control-lg border-primary" placeholder="Digite a palavra oculta..." autocomplete="off">
+                    <input type="text" id="userInput" class="form-control form-control-lg" placeholder="Digite a palavra oculta..." autocomplete="off">
                 </div>
                 
                 <div class="d-flex justify-content-between align-items-center">
@@ -175,12 +178,13 @@
 
 <div class="modal fade" id="hintModal" tabindex="-1" data-bs-backdrop="static" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
+        <div class="modal-content card-bg">
             <div class="modal-header bg-danger text-white">
                 <h5 class="modal-title">📖 Leitura de Suporte</h5>
+                <button type="button" class="btn-close btn-close-white" onclick="bootstrapModal.hide()"></button>
             </div>
             <div class="modal-body">
-                <p id="fullTextHint" class="lh-lg p-3 bg-light rounded shadow-sm" style="white-space: pre-wrap; font-size: 1.1rem;"></p>
+                <p id="fullTextHint" class="lh-lg p-3 rounded shadow-sm bg-body-tertiary text-dark" style="white-space: pre-wrap; font-size: 1.1rem;"></p>
                 <div class="alert alert-warning mb-0 small border-warning text-warning-emphasis">
                     <strong>Atenção:</strong> O nível deste card será resetado para 0.
                 </div>
