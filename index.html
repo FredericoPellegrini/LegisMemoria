@@ -65,7 +65,7 @@
         </div>
 
         <nav class="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar" id="listaPastas">
-            </nav>
+        </nav>
 
         <div class="p-6 mt-auto border-t border-slate-100 dark:border-border-thin">
             
@@ -199,7 +199,7 @@
                                 <span class="material-symbols-outlined text-vivid-crimson text-xl animate-pulse">bolt</span>
                             </div>
                             <div id="dashDecaimento" class="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
-                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -272,16 +272,22 @@
                 </div>
 
                 <div id="textDisplay" class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-thin p-8 rounded-xl shadow-sm mb-6 text-xl leading-relaxed text-slate-800 dark:text-slate-200 font-display">
-                    </div>
+                </div>
 
-                <div class="relative">
-                    <input type="text" id="userInput" class="w-full bg-transparent border-b-2 border-slate-300 dark:border-border-thin text-2xl py-4 px-2 text-slate-900 dark:text-white focus:border-primary dark:focus:border-electric-teal outline-none transition-colors font-bold placeholder-slate-300 dark:placeholder-slate-700" placeholder="Digite a palavra oculta..." autocomplete="off">
-                    <div class="absolute right-0 top-4">
-                        <button onclick="usarDica()" class="text-xs font-bold text-vivid-crimson hover:underline opacity-80">
-                            💡 Ver Resposta
+                <div class="relative group mt-4">
+                    <input type="text" id="userInput" 
+                           class="w-full bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-border-thin rounded-xl text-2xl py-5 pl-6 pr-40 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary dark:focus:ring-electric-teal outline-none transition-all font-bold placeholder-slate-300 dark:placeholder-slate-700 shadow-sm" 
+                           placeholder="Digite a palavra oculta..." 
+                           autocomplete="off">
+                    
+                    <div class="absolute right-4 top-1/2 -translate-y-1/2">
+                        <button onclick="usarDica()" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-vivid-crimson/10 border border-red-100 dark:border-vivid-crimson/20 text-xs font-bold text-vivid-crimson hover:bg-vivid-crimson hover:text-white transition-all cursor-pointer shadow-sm hover:shadow-md">
+                            <span>💡</span>
+                            <span>Ver Resposta</span>
                         </button>
                     </div>
                 </div>
+
                 <div class="mt-2 text-right">
                     <span class="text-[10px] text-slate-400 uppercase tracking-widest">Pressione <kbd class="font-mono bg-slate-100 dark:bg-border-thin px-1 rounded">SPACE</kbd> ou <kbd class="font-mono bg-slate-100 dark:bg-border-thin px-1 rounded">ENTER</kbd></span>
                 </div>

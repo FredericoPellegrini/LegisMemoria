@@ -286,18 +286,20 @@ function excluirPasta(idx) {
 }
 
 function selecionarPasta(idx) {
-    pastaAtivaIdx = idx;
+    // Se clicou na pasta que já está aberta, fecha ela (toggle)
+    if (pastaAtivaIdx === idx) {
+        pastaAtivaIdx = null;
+        document.getElementById('tituloPastaAtiva').innerText = "Selecione";
+        document.getElementById('folderIndicator').innerText = "Selecione uma pasta";
+    } else {
+        // Caso contrário, abre a nova pasta
+        pastaAtivaIdx = idx;
+        document.getElementById('tituloPastaAtiva').innerText = db.pastas[idx].nome;
+        document.getElementById('folderIndicator').innerText = db.pastas[idx].nome;
+    }
     
-    // Atualiza Textos
-    document.getElementById('tituloPastaAtiva').innerText = db.pastas[idx].nome;
-    document.getElementById('folderIndicator').innerText = db.pastas[idx].nome;
-    
-    // Renderiza a Sidebar (para expandir o accordion)
-    renderizarPastas();
-    
-    // Renderiza a lista principal (caso o usuário ainda queira ver a tabela grande)
-    renderizarCards();
-    
+    renderizarPastas(); // Atualiza a barra lateral (abre/fecha o accordion)
+    renderizarCards();  // Atualiza a área principal
     atualizarDashboard();
 }
 
