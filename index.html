@@ -1,202 +1,322 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-br" class="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LegisMemoria</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>LegisMemoria - Neural Dashboard</title>
+    
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Epilogue:wght@600;700;800&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        // Light Mode Palette
+                        "primary": "#007180",
+                        "primary-dark": "#005a66",
+                        "background-light": "#fafafa",
+                        "sidebar-light": "#ffffff",
+                        
+                        // Dark Mode Palette (OLED)
+                        "oled-black": "#000000",
+                        "surface-dark": "#121212",
+                        "border-thin": "#1F1F1F",
+                        "electric-teal": "#00F5FF",
+                        "safety-orange": "#FF6B00",
+                        "vivid-crimson": "#FF003D",
+                        "off-white": "#F5F5F7",
+                        "silver": "#A1A1AA",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"],
+                        "heading": ["Epilogue", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="bg-background-light dark:bg-oled-black font-display text-slate-800 dark:text-off-white transition-colors duration-300">
 
-<div class="container-fluid p-0">
-    <div class="row g-0">
+<div class="flex h-screen overflow-hidden">
+
+    <aside class="w-72 bg-white dark:bg-surface-dark border-r border-slate-200 dark:border-border-thin flex flex-col z-50 transition-colors duration-300">
+        <div class="p-8 flex items-center gap-3">
+            <div class="size-10 bg-primary dark:bg-electric-teal rounded-lg flex items-center justify-center shadow-lg shadow-primary/20 dark:shadow-electric-teal/20">
+                <span class="material-symbols-outlined text-white dark:text-oled-black font-bold">balance</span>
+            </div>
+            <div>
+                <h1 class="font-heading text-lg font-bold leading-none tracking-tight text-slate-900 dark:text-off-white">LegisMemoria</h1>
+                <p class="text-xs text-primary dark:text-electric-teal font-bold uppercase tracking-widest mt-1">Intelligence</p>
+            </div>
+        </div>
+
+        <div class="px-6 mb-4">
+            <div class="flex gap-2">
+                <input type="text" id="novaPastaNome" class="w-full bg-slate-50 dark:bg-oled-black border border-slate-200 dark:border-border-thin rounded text-xs p-2 focus:ring-1 focus:ring-primary dark:focus:ring-electric-teal outline-none transition-all" placeholder="Nova Coleção...">
+                <button onclick="criarPasta()" class="bg-primary dark:bg-electric-teal text-white dark:text-oled-black p-2 rounded hover:brightness-110 transition-all font-bold">+</button>
+            </div>
+        </div>
+
+        <nav class="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar" id="listaPastas">
+            </nav>
+
+        <div class="p-6 mt-auto border-t border-slate-100 dark:border-border-thin">
+            
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex flex-col">
+                    <span id="tituloPastaAtiva" class="font-heading font-bold text-sm truncate w-40 text-slate-700 dark:text-silver">Selecione</span>
+                    <small id="contagemCards" class="text-[10px] text-slate-400 uppercase tracking-wider">0 Arquivos</small>
+                </div>
+            </div>
+
+            <button id="btnNovoCard" onclick="mostrarSetup()" class="hidden w-full bg-slate-900 dark:bg-white text-white dark:text-black font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all hover:scale-[1.02] mb-3 shadow-lg">
+                <span class="material-symbols-outlined text-lg">add_circle</span>
+                <span>Novo Card</span>
+            </button>
+
+            <div class="flex gap-2">
+                <button onclick="exportarBackup()" class="flex-1 border border-slate-200 dark:border-border-thin text-[10px] font-bold py-2 rounded text-slate-500 hover:bg-slate-50 dark:hover:bg-border-thin dark:text-silver transition-all">
+                    ⬇ EXPORT
+                </button>
+                <button onclick="triggerImport()" class="flex-1 border border-primary/30 dark:border-electric-teal/30 text-[10px] font-bold py-2 rounded text-primary dark:text-electric-teal hover:bg-primary/5 dark:hover:bg-electric-teal/10 transition-all">
+                    ⬆ IMPORT
+                </button>
+                <input type="file" id="fileInput" class="hidden" accept=".json" onchange="importarBackup(this)">
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden bg-background-light dark:bg-oled-black relative">
         
-        <nav class="col-md-3 col-lg-2 bg-dark sidebar p-3 text-white d-flex flex-column">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h5 class="m-0 fw-bold text-primary">📂 LegisMemoria</h5>
-                <button onclick="alternarTema()" id="btnTema" class="btn btn-outline-light" title="Mudar Tema">🌙</button>
+        <header class="h-20 border-b border-slate-200 dark:border-border-thin flex items-center justify-between px-10 bg-white dark:bg-surface-dark shrink-0 transition-colors duration-300">
+            <div class="flex items-center gap-2 text-xs font-medium uppercase tracking-widest">
+                <span class="text-slate-400 dark:text-silver">System</span>
+                <span class="text-slate-300 dark:text-border-thin">/</span>
+                <span class="text-primary dark:text-electric-teal font-bold">Dashboard</span>
             </div>
-
-            <div class="input-group mb-3">
-                <input type="text" id="novaPastaNome" class="form-control form-control-sm" placeholder="Nova pasta...">
-                <button onclick="criarPasta()" class="btn btn-primary btn-sm">+</button>
-            </div>
-            
-            <div id="listaPastas" class="list-group list-group-flush mb-3 flex-grow-0" style="max-height: 35vh; overflow-y: auto;">
-                </div>
-            
-            <hr class="border-secondary opacity-50">
-            
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 id="tituloPastaAtiva" class="text-info small fw-bold m-0 text-truncate">Selecione uma Pasta</h6>
-                <small id="contagemCards" class="text-muted" style="font-size: 0.7rem;">0 cards</small>
-            </div>
-
-            <button id="btnNovoCard" class="btn btn-primary btn-sm w-100 mb-3 d-none" onclick="mostrarSetup()">+ Novo Card</button>
-            
-            <div id="listaCards" class="list-group list-group-flush flex-grow-1" style="overflow-y: auto; min-height: 0;">
-                </div>
-
-            <div class="mt-3 pt-3 border-top border-secondary opacity-50">
-                <h6 class="small mb-2 fw-bold text-white-50">📦 Dados & Backup</h6>
-                <div class="d-flex gap-2">
-                    <button onclick="exportarBackup()" class="btn btn-outline-light btn-sm w-50" title="Baixar dados">⬇ Export</button>
-                    <button onclick="triggerImport()" class="btn btn-outline-warning btn-sm w-50" title="Carregar dados">⬆ Import</button>
-                </div>
-                <input type="file" id="fileInput" class="d-none" accept=".json" onchange="importarBackup(this)">
-            </div>
-        </nav>
-
-        <main class="col-md-9 col-lg-10 main-content">
-            
-            <div id="dashboardArea">
-                <h2 class="mb-4 fw-light title-page">Painel de Controle</h2>
-                
-                <div class="row g-3 mb-4">
-                    <div class="col-md-3">
-                        <div class="card bg-danger text-white p-3 shadow-sm h-100 border-0">
-                            <h6>Críticos (Nível < 4)</h6>
-                            <div id="kpiCriticos" class="h2 mt-2 fw-bold">0</div>
-                        </div>
+            <div class="flex items-center gap-6">
+                <button onclick="alternarTema()" id="btnTema" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-border-thin transition-colors text-slate-500 dark:text-silver">
+                    <span class="material-symbols-outlined">dark_mode</span>
+                </button>
+                <div class="flex items-center gap-4 border-l border-slate-200 dark:border-border-thin pl-6">
+                    <div class="text-right">
+                        <p class="text-sm font-bold text-slate-800 dark:text-off-white leading-none">Usuário</p>
+                        <p class="text-[10px] text-slate-500 dark:text-silver uppercase tracking-widest mt-1">Estudante</p>
                     </div>
-                    <div class="col-md-3">
-                        <div class="card bg-warning text-dark p-3 shadow-sm h-100 border-0">
-                            <h6>Atenção (Nível 4-7)</h6>
-                            <div id="kpiAtencao" class="h2 mt-2 fw-bold">0</div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-success text-white p-3 shadow-sm h-100 border-0">
-                            <h6>Seguros (Nível 8-10)</h6>
-                            <div id="kpiSeguros" class="h2 mt-2 fw-bold">0</div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-primary text-white p-3 shadow-sm h-100 border-0">
-                            <h6>Tempo Total</h6>
-                            <div id="dashTempoTotal" class="h4 mt-2 fw-bold">00:00</div>
-                        </div>
+                    <div class="size-10 rounded-full bg-slate-200 dark:bg-border-thin flex items-center justify-center text-slate-400 font-bold">U</div>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-10">
+            
+            <div id="dashboardArea" class="max-w-7xl mx-auto animate-fade-in">
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+                    <div class="space-y-2">
+                        <h2 class="text-4xl font-heading font-extrabold text-slate-900 dark:text-off-white tracking-tight">Visão Geral</h2>
+                        <p class="text-slate-500 dark:text-silver text-lg">Sincronização neural do conhecimento jurídico.</p>
                     </div>
                 </div>
 
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <div class="card p-3 shadow-sm h-100 card-bg">
-                            <h6 class="text-muted border-bottom pb-2">Distribuição da Memória</h6>
-                            <div style="height: 250px; display: flex; justify-content: center;">
-                                <canvas id="chartDistribuicao"></canvas>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+                    <div class="bg-white dark:bg-surface-dark p-6 rounded-xl border border-slate-100 dark:border-border-thin shadow-sm hover:border-primary/30 dark:hover:border-electric-teal/30 transition-all group">
+                        <div class="flex justify-between items-start mb-4">
+                            <p class="text-xs font-bold text-slate-500 dark:text-silver uppercase tracking-widest">Críticos</p>
+                            <span class="material-symbols-outlined text-vivid-crimson group-hover:scale-110 transition-transform">error</span>
+                        </div>
+                        <p id="kpiCriticos" class="text-3xl font-heading font-extrabold text-slate-900 dark:text-off-white">0</p>
+                        <p class="text-xs font-semibold text-vivid-crimson mt-2">Nível < 4</p>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-surface-dark p-6 rounded-xl border border-slate-100 dark:border-border-thin shadow-sm hover:border-safety-orange/30 transition-all group">
+                        <div class="flex justify-between items-start mb-4">
+                            <p class="text-xs font-bold text-slate-500 dark:text-silver uppercase tracking-widest">Atenção</p>
+                            <span class="material-symbols-outlined text-safety-orange">warning</span>
+                        </div>
+                        <p id="kpiAtencao" class="text-3xl font-heading font-extrabold text-slate-900 dark:text-off-white">0</p>
+                        <p class="text-xs font-semibold text-safety-orange mt-2">Nível 4-7</p>
+                    </div>
+
+                    <div class="bg-white dark:bg-surface-dark p-6 rounded-xl border border-slate-100 dark:border-border-thin shadow-sm hover:border-green-500/30 transition-all group">
+                        <div class="flex justify-between items-start mb-4">
+                            <p class="text-xs font-bold text-slate-500 dark:text-silver uppercase tracking-widest">Seguros</p>
+                            <span class="material-symbols-outlined text-emerald-500">check_circle</span>
+                        </div>
+                        <p id="kpiSeguros" class="text-3xl font-heading font-extrabold text-slate-900 dark:text-off-white">0</p>
+                        <p class="text-xs font-semibold text-emerald-500 mt-2">Nível 8-10</p>
+                    </div>
+
+                    <div class="bg-white dark:bg-surface-dark p-6 rounded-xl border border-slate-100 dark:border-border-thin shadow-sm hover:border-primary/30 dark:hover:border-electric-teal/30 transition-all">
+                        <div class="flex justify-between items-start mb-4">
+                            <p class="text-xs font-bold text-slate-500 dark:text-silver uppercase tracking-widest">Tempo Total</p>
+                            <span class="material-symbols-outlined text-primary dark:text-electric-teal">timer</span>
+                        </div>
+                        <p id="dashTempoTotal" class="text-3xl font-heading font-extrabold text-slate-900 dark:text-off-white">00:00</p>
+                        <p class="text-xs font-semibold text-primary dark:text-electric-teal mt-2">Foco Acumulado</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-2 space-y-8">
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="bg-white dark:bg-surface-dark rounded-xl border border-slate-100 dark:border-border-thin shadow-sm p-6">
+                                <h3 class="text-sm font-heading font-bold text-slate-900 dark:text-off-white uppercase tracking-wider mb-4">Distribuição</h3>
+                                <div class="h-48 relative w-full">
+                                    <canvas id="chartDistribuicao"></canvas>
+                                </div>
+                            </div>
+                            <div class="bg-white dark:bg-surface-dark rounded-xl border border-slate-100 dark:border-border-thin shadow-sm p-6">
+                                <h3 class="text-sm font-heading font-bold text-slate-900 dark:text-off-white uppercase tracking-wider mb-4">Domínio por Pasta</h3>
+                                <div class="h-48 relative w-full">
+                                    <canvas id="chartBarras"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white dark:bg-surface-dark rounded-xl border border-slate-100 dark:border-border-thin shadow-sm overflow-hidden">
+                            <div class="px-6 py-5 border-b border-slate-100 dark:border-border-thin flex justify-between items-center">
+                                <h3 class="text-xl font-heading font-bold text-slate-900 dark:text-off-white">Meus Cards (Pasta Ativa)</h3>
+                                <span class="text-xs font-bold text-slate-400 uppercase" id="folderIndicator">Selecione uma pasta</span>
+                            </div>
+                            <div id="listaCards" class="overflow-x-auto min-h-[100px]">
+                                <div class="p-8 text-center text-slate-400 dark:text-gray-600 text-sm">Nenhuma pasta selecionada ou vazia.</div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="card p-3 shadow-sm h-100 card-bg">
-                            <h6 class="text-muted border-bottom pb-2">Domínio por Pasta (Média Nível)</h6>
-                            <div style="height: 250px;">
-                                <canvas id="chartBarras"></canvas>
+
+                    <div class="space-y-8">
+                        <div class="bg-white dark:bg-surface-dark rounded-xl border border-slate-100 dark:border-border-thin shadow-sm p-6">
+                            <div class="flex items-center justify-between mb-6">
+                                <h3 class="text-lg font-heading font-bold text-slate-900 dark:text-off-white">Próxima Queda</h3>
+                                <span class="material-symbols-outlined text-vivid-crimson text-xl animate-pulse">bolt</span>
                             </div>
+                            <div id="dashDecaimento" class="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                                </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div class="row mt-4">
-                    <div class="col-12">
-                         <h6 class="text-muted border-bottom pb-2">Decaimento em Tempo Real (Próxima Queda)</h6>
-                         <div id="dashDecaimento" class="decay-list-container" style="max-height: 500px; overflow-y: auto;"></div>
+            <div id="setupArea" class="hidden max-w-3xl mx-auto animate-fade-in">
+                <div class="bg-white dark:bg-surface-dark rounded-xl border border-slate-100 dark:border-border-thin shadow-lg p-8">
+                    <div class="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-border-thin pb-4">
+                        <h4 id="setupTitle" class="text-2xl font-heading font-bold text-slate-900 dark:text-off-white">Novo Registro</h4>
+                        <button onclick="voltarAoDashboard()" class="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+                            <span class="material-symbols-outlined">close</span>
+                        </button>
                     </div>
-                </div>
-            </div>
-
-            <div id="setupArea" class="card shadow-sm p-4 mx-auto d-none card-bg" style="max-width: 800px;">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h4 id="setupTitle" class="title-page">Novo Card</h4>
-                    <button onclick="voltarAoDashboard()" class="btn-close btn-close-custom"></button>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small text-muted">Título</label>
-                    <input type="text" id="cardTitle" class="form-control" placeholder="Ex: Art. 5º CF - Caput">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small text-muted">Conteúdo</label>
-                    <textarea id="rawText" class="form-control" rows="10" placeholder="Cole o texto aqui..."></textarea>
-                </div>
-                <div class="d-flex gap-2 justify-content-end">
-                    <button onclick="voltarAoDashboard()" class="btn btn-outline-secondary">Cancelar</button>
-                    <button onclick="salvarCard()" class="btn btn-success px-4">Salvar</button>
-                </div>
-            </div>
-
-            <div id="trainingArea" class="d-none" style="max-width: 900px; margin: 0 auto;">
-                
-                <div id="statusHeader" class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h2 id="tituloCardAtivo" class="h4 m-0 title-page">Título</h2>
+                    
+                    <div class="space-y-6">
                         <div>
-                            <span id="faseStatus" class="badge bg-secondary me-1">Fase</span>
-                            <span id="infoBadge" class="badge bg-primary">Rodada</span>
-                            <button onclick="voltarAoDashboard()" class="btn btn-outline-secondary btn-sm ms-2">Sair</button>
+                            <label class="block text-xs font-bold text-slate-500 dark:text-silver uppercase tracking-widest mb-2">Título do Card</label>
+                            <input type="text" id="cardTitle" class="w-full bg-slate-50 dark:bg-oled-black border border-slate-200 dark:border-border-thin rounded-lg p-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary dark:focus:ring-electric-teal outline-none transition-all font-heading font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 dark:text-silver uppercase tracking-widest mb-2">Conteúdo da Lei/Texto</label>
+                            <textarea id="rawText" rows="12" class="w-full bg-slate-50 dark:bg-oled-black border border-slate-200 dark:border-border-thin rounded-lg p-4 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-primary dark:focus:ring-electric-teal outline-none transition-all leading-relaxed font-mono text-sm" placeholder="Cole o texto aqui..."></textarea>
+                        </div>
+                        <div class="flex justify-end gap-3 pt-4">
+                            <button onclick="voltarAoDashboard()" class="px-6 py-2 rounded-lg border border-slate-200 dark:border-border-thin text-slate-600 dark:text-silver hover:bg-slate-50 dark:hover:bg-border-thin font-bold transition-all">Cancelar</button>
+                            <button onclick="salvarCard()" class="px-6 py-2 rounded-lg bg-primary dark:bg-electric-teal text-white dark:text-oled-black font-bold hover:shadow-lg transition-all hover:-translate-y-0.5">Salvar Registro</button>
                         </div>
                     </div>
-                    
-                    <div class="progress rounded-0 progress-track" style="height: 8px;">
-                        <div id="progressBarEstudo" class="progress-bar bg-success" role="progressbar" style="width: 0%; transition: none;"></div>
-                    </div>
-                    
-                    <div class="d-flex justify-content-between mt-1 text-muted" style="font-size: 0.8rem;">
-                        <span>Progresso da Sessão</span>
-                        <span id="labelProgresso">0%</span>
-                    </div>
-
-                    <div class="d-flex gap-3 align-items-center mt-3 p-3 rounded border card-bg shadow-sm">
-                        <small class="stats-label">Winrate: <strong id="winratePerc" class="text-success">100%</strong></small>
-                        <small class="stats-label">Tempo: <strong id="cronometroDisplay">00:00</strong></small>
-                        <small class="stats-label">Nível Atual: <strong id="nivelFixacao" class="badge bg-info text-dark">0/10</strong></small>
-                    </div>
                 </div>
+            </div>
 
-                <div id="textDisplay" class="mb-4 shadow-sm p-4 rounded card-bg"></div>
+            <div id="trainingArea" class="hidden max-w-4xl mx-auto animate-fade-in pb-20">
                 
-                <div class="input-group mb-2">
-                    <input type="text" id="userInput" class="form-control form-control-lg" placeholder="Digite a palavra oculta..." autocomplete="off">
-                </div>
-                
-                <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted">Espaço ou Enter para confirmar.</small>
-                    <button onclick="usarDica()" id="btnDica" class="btn btn-link btn-sm text-danger p-0 text-decoration-none fw-bold">
-                        💡 Ver Resposta (Zera Nível)
+                <div class="flex items-center justify-between mb-8">
+                    <div>
+                         <div class="flex items-center gap-3 mb-1">
+                            <span id="faseStatus" class="px-2 py-1 bg-slate-100 dark:bg-border-thin text-slate-600 dark:text-silver text-[10px] font-bold rounded uppercase">Fase</span>
+                            <span id="infoBadge" class="px-2 py-1 bg-primary/10 dark:bg-electric-teal/10 text-primary dark:text-electric-teal text-[10px] font-bold rounded uppercase">Rodada</span>
+                        </div>
+                        <h2 id="tituloCardAtivo" class="text-2xl font-heading font-bold text-slate-900 dark:text-off-white">Título do Card</h2>
+                    </div>
+                    <button onclick="voltarAoDashboard()" class="px-4 py-2 border border-slate-200 dark:border-border-thin rounded-lg text-slate-500 dark:text-silver hover:text-primary dark:hover:text-electric-teal text-xs font-bold uppercase tracking-widest transition-colors">
+                        Encerrar
                     </button>
                 </div>
 
-                <div id="errorArea" class="mt-4 pt-3 border-top d-none">
-                    <h6 class="text-muted small fw-bold">ERROS:</h6>
-                    <ul id="errorList" class="p-0 m-0 text-danger small" style="list-style: none;"></ul>
+                <div class="mb-8">
+                    <div class="flex justify-between text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest mb-2">
+                        <span>Progresso Neural</span>
+                        <span id="labelProgresso">0%</span>
+                    </div>
+                    <div class="h-2 w-full bg-slate-100 dark:bg-border-thin rounded-full overflow-hidden">
+                        <div id="progressBarEstudo" class="h-full bg-primary dark:bg-electric-teal transition-all duration-500" style="width: 0%"></div>
+                    </div>
                 </div>
+
+                <div class="grid grid-cols-3 gap-4 mb-8">
+                    <div class="bg-white dark:bg-surface-dark border border-slate-100 dark:border-border-thin p-4 rounded-lg text-center">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Winrate</p>
+                        <p id="winratePerc" class="text-xl font-heading font-bold text-emerald-500">100%</p>
+                    </div>
+                    <div class="bg-white dark:bg-surface-dark border border-slate-100 dark:border-border-thin p-4 rounded-lg text-center">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Tempo</p>
+                        <p id="cronometroDisplay" class="text-xl font-heading font-bold text-slate-700 dark:text-slate-200">00:00</p>
+                    </div>
+                    <div class="bg-white dark:bg-surface-dark border border-slate-100 dark:border-border-thin p-4 rounded-lg text-center">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Nível</p>
+                        <p id="nivelFixacao" class="text-xl font-heading font-bold text-primary dark:text-electric-teal">0/10</p>
+                    </div>
+                </div>
+
+                <div id="textDisplay" class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-thin p-8 rounded-xl shadow-sm mb-6 text-xl leading-relaxed text-slate-800 dark:text-slate-200 font-display">
+                    </div>
+
+                <div class="relative">
+                    <input type="text" id="userInput" class="w-full bg-transparent border-b-2 border-slate-300 dark:border-border-thin text-2xl py-4 px-2 text-slate-900 dark:text-white focus:border-primary dark:focus:border-electric-teal outline-none transition-colors font-bold placeholder-slate-300 dark:placeholder-slate-700" placeholder="Digite a palavra oculta..." autocomplete="off">
+                    <div class="absolute right-0 top-4">
+                        <button onclick="usarDica()" class="text-xs font-bold text-vivid-crimson hover:underline opacity-80">
+                            💡 Ver Resposta
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-2 text-right">
+                    <span class="text-[10px] text-slate-400 uppercase tracking-widest">Pressione <kbd class="font-mono bg-slate-100 dark:bg-border-thin px-1 rounded">SPACE</kbd> ou <kbd class="font-mono bg-slate-100 dark:bg-border-thin px-1 rounded">ENTER</kbd></span>
+                </div>
+
+                <div id="errorArea" class="mt-8 hidden p-4 bg-red-50 dark:bg-vivid-crimson/10 border border-red-100 dark:border-vivid-crimson/20 rounded-lg">
+                    <h6 class="text-vivid-crimson text-xs font-bold uppercase tracking-widest mb-2">Falhas de Memória</h6>
+                    <ul id="errorList" class="list-disc list-inside text-sm text-red-600 dark:text-red-300 space-y-1"></ul>
+                </div>
+
             </div>
-        </main>
-    </div>
+
+        </div>
+    </main>
 </div>
 
-<div class="modal fade" id="hintModal" tabindex="-1" data-bs-backdrop="static" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content card-bg">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">📖 Leitura de Suporte</h5>
-                <button type="button" class="btn-close btn-close-white" onclick="bootstrapModal.hide()"></button>
+<div id="hintModal" class="fixed inset-0 z-[60] hidden flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity">
+    <div class="bg-white dark:bg-surface-dark w-full max-w-2xl rounded-xl shadow-2xl border border-slate-200 dark:border-border-thin overflow-hidden transform transition-all scale-100">
+        <div class="bg-vivid-crimson p-4 flex justify-between items-center">
+            <h5 class="text-white font-bold font-heading">Leitura de Suporte</h5>
+            <button onclick="fecharModalDica()" class="text-white hover:opacity-75 font-bold">✕</button>
+        </div>
+        <div class="p-8 max-h-[60vh] overflow-y-auto">
+            <p id="fullTextHint" class="text-lg leading-loose text-slate-700 dark:text-slate-300 whitespace-pre-wrap"></p>
+            <div class="mt-6 p-3 bg-amber-50 dark:bg-safety-orange/10 border border-amber-200 dark:border-safety-orange/20 rounded text-amber-700 dark:text-safety-orange text-xs font-bold">
+                ⚠️ O nível deste card será resetado para 0.
             </div>
-            <div class="modal-body">
-                <p id="fullTextHint" class="lh-lg p-3 rounded shadow-sm bg-body-tertiary text-dark" style="white-space: pre-wrap; font-size: 1.1rem;"></p>
-                <div class="alert alert-warning mb-0 small border-warning text-warning-emphasis">
-                    <strong>Atenção:</strong> O nível deste card será resetado para 0.
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-danger w-100 fw-bold" onclick="estouPronto()">Retomar Treino (Nível 0)</button>
-            </div>
+        </div>
+        <div class="p-4 bg-slate-50 dark:bg-oled-black border-t border-slate-100 dark:border-border-thin">
+            <button onclick="estouPronto()" class="w-full bg-vivid-crimson hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors shadow-lg shadow-red-500/20">
+                Retomar Treino (Nível 0)
+            </button>
         </div>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="script.js"></script>
 </body>
