@@ -91,9 +91,16 @@ function formatarTempo(s) {
 // ==========================================
 function getDadosDecaimento(card) {
     const duracaoPorNivel = {
-        10: 13, 9: 12, 8: 10,
-        7: 9, 6: 8, 5: 7,
-        4: 6, 3: 5, 2: 4, 1: 3
+        10: 20,
+         9: 19,
+         8: 18,
+         7: 17,
+         6: 16,
+         5: 15,
+         4: 14,
+         3: 13,
+         2: 12,
+         1: 11
     };
 
     const nivelSalvo = Math.min(10, Math.max(0, card.nivel || 0));
